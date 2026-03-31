@@ -1,0 +1,11 @@
+out/
+.with/
+
+.DS_Store
+*.dSYM/
+*.o
+
+.idea/
+.vscode/
+*.swp
+*.swo
