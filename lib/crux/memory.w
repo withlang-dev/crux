@@ -17,6 +17,7 @@ type CPUMemory {
     size: Size,
     device: *mut Device,
     owner_arena: *mut Arena,
+    borrowed: bool,
 }
 
 type CPUArena {
@@ -44,26 +45,45 @@ pub fn placement_replicated -> MemoryPlacement:
 pub fn placement_partitioned(regions: Size) -> MemoryPlacement:
     MemoryPlacement { kind: PLACEMENT_PARTITIONED, regions }
 
-pub fn alloc(device: *mut Device, size: Size) -> Result[*mut Memory, SubstrateError]:
-    let actual_device = if device == null then default_device() else device
+fn alloc_meta -> Result[*mut CPUMemory, SubstrateError]:
     let meta_opt = malloc(CPU_MEMORY_BYTES)
     if meta_opt == None:
         return Err(.OutOfMemory)
-    let meta_raw = meta_opt.unwrap()
+    Ok(meta_opt.unwrap() as *mut CPUMemory)
+
+pub fn alloc(device: *mut Device, size: Size) -> Result[*mut Memory, SubstrateError]:
+    let actual_device = if device == null then default_device() else device
+    let meta = alloc_meta()?
     let requested = if size == 0usize then 1usize else size
     let data_opt = malloc(requested)
     if data_opt == None:
-        cpu_release(meta_raw)
+        cpu_release(meta as *mut c_void)
         return Err(.OutOfMemory)
     let data_raw = data_opt.unwrap()
-    let mem = meta_raw as *mut CPUMemory
     unsafe:
-        (*mem).base = meta_raw
-        (*mem).data = data_raw
-        (*mem).size = size
-        (*mem).device = actual_device
-        (*mem).owner_arena = null
-    Ok(mem as *mut Memory)
+        (*meta).base = meta as *mut c_void
+        (*meta).data = data_raw
+        (*meta).size = size
+        (*meta).device = actual_device
+        (*meta).owner_arena = null
+        (*meta).borrowed = false
+    Ok(meta as *mut Memory)
+
+pub fn memory_from_ptr(device: *mut Device, ptr: *mut u8, size: Size) -> *mut Memory:
+    if ptr == null:
+        return null_memory()
+    let actual_device = if device == null then default_device() else device
+    let meta = match alloc_meta()
+        Ok(v) => v
+        Err(_) => return null_memory()
+    unsafe:
+        (*meta).base = meta as *mut c_void
+        (*meta).data = ptr as *mut c_void
+        (*meta).size = size
+        (*meta).device = actual_device
+        (*meta).owner_arena = null
+        (*meta).borrowed = true
+    meta as *mut Memory
 
 pub fn free(mem: *mut Memory):
     if mem == null:
@@ -72,7 +92,8 @@ pub fn free(mem: *mut Memory):
     let owner_arena = unsafe: (*meta).owner_arena
     let data = unsafe: (*meta).data
     let base = unsafe: (*meta).base
-    if owner_arena == null and data != null:
+    let borrowed = unsafe: (*meta).borrowed
+    if owner_arena == null and not borrowed and data != null:
         cpu_release(data)
     if base != null:
         cpu_release(base)
@@ -83,7 +104,7 @@ pub fn free_after(stream: *mut Stream, mem: *mut Memory):
 
 pub fn memory_size(mem: *mut Memory) -> Size:
     if mem == null:
-        return 0
+        return 0usize
     let meta = mem as *mut CPUMemory
     unsafe: (*meta).size
 
@@ -146,23 +167,23 @@ pub fn arena_alloc(arena: *mut Arena, size: Size, align: Size) -> Result[*mut Me
         return Err(.Unsupported("arena handle is null"))
     let raw_arena = arena as *mut CPUArena
     let start = align_up(unsafe: (*raw_arena).used, align)
+    let capacity = unsafe: (*raw_arena).size
+    if start > capacity:
+        return Err(.OutOfMemory)
+    if size > capacity - start:
+        return Err(.OutOfMemory)
     let next = start + size
-    if next > unsafe: (*raw_arena).size:
-        return Err(.OutOfMemory)
-    let meta_opt = malloc(CPU_MEMORY_BYTES)
-    if meta_opt == None:
-        return Err(.OutOfMemory)
-    let meta_raw = meta_opt.unwrap()
+    let meta = alloc_meta()?
     let data = unsafe: ((*raw_arena).data as *mut u8 + start as i64) as *mut c_void
-    let mem = meta_raw as *mut CPUMemory
     unsafe:
-        (*mem).base = meta_raw
-        (*mem).data = data
-        (*mem).size = size
-        (*mem).device = (*raw_arena).device
-        (*mem).owner_arena = arena
+        (*meta).base = meta as *mut c_void
+        (*meta).data = data
+        (*meta).size = size
+        (*meta).device = (*raw_arena).device
+        (*meta).owner_arena = arena
+        (*meta).borrowed = false
         (*raw_arena).used = next
-    Ok(mem as *mut Memory)
+    Ok(meta as *mut Memory)
 
 pub fn arena_reset(arena: *mut Arena):
     if arena == null:

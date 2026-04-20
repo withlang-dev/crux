@@ -74,7 +74,7 @@ impl Shape:
         self.rank == 0
 
 impl Strides:
-    fn is_contiguous(self: &Self, shape: Shape) -> bool:
+    fn is_contiguous(self: &Self, shape: Shape, dtype: DType) -> bool:
         var stride: isize = dtype_size(dtype) as isize
         var i = shape.rank - 1
         while i >= 0:
@@ -168,6 +168,11 @@ type ProgramSig = {
     params: Vec[ParamDesc],
 }
 ```
+
+`ProgramSig` is derived from `Param` IR instructions (see Part 5)
+during compilation. `program_sig(prog)` returns the signature
+extracted from the compiled program's IR. Dispatch-time binding
+validation matches binding names and dtypes against this signature.
 
 ### Bindings (named dispatch)
 
@@ -292,12 +297,15 @@ fn view_canonicalize(v: View) -> View
 Views are value types. Creating a view never touches the device.
 Views do not own memory. Multiple views may alias the same memory.
 
-**`view_byte_range`** returns `(min_byte_offset, max_byte_offset)` —
-the actual memory span touched by a strided view. This is NOT
+**`view_byte_range`** returns `(min_byte, end_byte)` — a half-open
+byte range `[min_byte, end_byte)` representing the actual memory
+span touched by a strided view. `end_byte` is exclusive (one past
+the last byte of the last element). This is NOT
 `offset + elem_count * dtype_size`, which is wrong for non-contiguous
 views (a transposed view's elements can span more bytes than that).
-Computed by walking strides to find the minimum and maximum byte
-offsets reachable from the view's index space. Required for:
+Computed by walking strides to find the minimum and maximum element
+offsets reachable from the view's index space, then adding
+`dtype_size` to the maximum to get the exclusive end. Required for:
 - Alias validation at dispatch time
 - Bounds-checking views against Memory size
 - Safe cross-device copies of non-contiguous views
@@ -309,16 +317,24 @@ backends to select optimized copy/dispatch paths.
 ### Data movement
 
 ```
-fn copy(stream: *mut Stream, src: View, dst: View) -> *mut Event
+fn copy(stream: *mut Stream, src: View, dst: View) -> Result[*mut Event, SubstrateError]
 fn copy_bytes(stream: *mut Stream,
               src: *mut Memory, src_offset: usize,
               dst: *mut Memory, dst_offset: usize,
-              size: usize) -> *mut Event
-fn fill(stream: *mut Stream, dst: View, value: Scalar) -> *mut Event
+              size: usize) -> Result[*mut Event, SubstrateError]
+fn fill(stream: *mut Stream, dst: View, value: Scalar) -> Result[*mut Event, SubstrateError]
 ```
 
-`copy` handles cross-device transfers transparently. Requires
-matching dtype and element count. `copy_bytes` is raw.
+All three return `Result` because they perform submission-time
+validation:
+- `copy`: dtype mismatch, element count mismatch, broadcast write
+  violation (dst with stride=0).
+- `copy_bytes`: out-of-bounds offset + size vs memory size.
+- `fill`: Scalar dtype doesn't match view dtype, broadcast write
+  violation.
+
+`copy` handles cross-device transfers transparently. `copy_bytes`
+is raw — no dtype or view validation beyond bounds.
 `fill` is typed — the Scalar's tagged dtype must match the view's
 dtype. Mismatch is an error, not silent reinterpretation.
 
@@ -331,9 +347,15 @@ fn program_destroy(prog: *mut Program)
 
 type ProgramSource = {
     ir: Vec[IRInst],
+    strings: Vec[str],     // string pool for param/constant names
     entry: str,
 }
 ```
+
+The `strings` pool stores names referenced by `Param` and
+`SpecConstant` instructions. The `d0` field of these instructions
+is an index into this pool. The IR plus the string pool together
+fully describe the program — no external metadata needed.
 
 **`compile` takes `DeviceInfo`, not `*mut Device`.** The compilation
 process only needs device capabilities (subgroup size, max shared
@@ -345,14 +367,31 @@ memory, max workgroup size), not a live device handle. This enables:
 Backends may internally require device handles for vendor compiler
 APIs (e.g., MTLDevice for Metal library creation). This is handled
 internally — the backend receives DeviceInfo and resolves the
-device handle from its own state.
+device handle from its own state. If `compile` is called with a
+DeviceInfo that doesn't correspond to any created device, the
+backend returns `CompileError`.
 
-**Spec constants** are declared as IR instructions (see Part 5),
-not as a separate sidecar. This makes the IR self-contained — a
-single `Vec[IRInst]` fully describes the program.
+**Compiled programs are capability-targeted.** A program compiled
+for a given DeviceInfo will work on any device with compatible
+capabilities. Programs are NOT backend-instance-specific — a
+program compiled for "Apple M2 GPU" works on any M2 device, not
+just the specific MTLDevice that happened to be live during
+compilation.
+
+**Spec constants** and **parameter declarations** are IR
+instructions (see Part 5), not separate sidecars. The program is
+fully described by `ir` (instructions) + `strings` (name pool) —
+no external metadata.
 
 **Compilation caching:** Per-process, keyed by
-`hash(device_info.name, ir_bytes)`. O(1) lookup.
+`hash(backend_id, codegen_capabilities, ir_bytes, string_bytes)`.
+The `codegen_capabilities` hash includes every DeviceInfo field
+that affects code generation: `subgroup_size`, `max_shared_memory`,
+`max_workgroup_size`, and `kind`. It does NOT include fields that
+don't affect codegen (like `memory_total` or `memory_available`).
+`device_info.name` alone is not a stable codegen identity — two
+devices can share a name while differing in limits or compiled
+binary compatibility. O(1) lookup.
 
 ### Stream and execution
 
@@ -567,6 +606,9 @@ On CPU:
 ### Operations
 
 ```
+// Parameter declarations (must appear before computation, after spec constants)
+param(name, mode, rank, dtype)
+
 // Spec constants (must appear before all other instructions)
 spec_constant(name, dtype, default_value)
 
@@ -623,6 +665,27 @@ barrier()                       // workgroup barrier
 @[cache(workgroup)]
 ```
 
+### Param declarations
+
+Parameters are declared as IR instructions at the top of the
+program, after spec constants and before computation. Each `Param`
+instruction declares one kernel parameter with its name, mode,
+rank, and dtype.
+
+```
+param("a", ParamMode.In, 2, DType.Float32)     // a: in [M, K] f32
+param("b", ParamMode.In, 2, DType.Float32)     // b: in [K, N] f32
+param("out", ParamMode.Out, 2, DType.Float32)  // out: out [M, N] f32
+```
+
+`program_sig(prog)` extracts these declarations into a `ProgramSig`
+during compilation. Dispatch-time binding validation matches each
+binding's name and dtype against the compiled program's signature.
+
+v1 stored parameters as a separate `ProgramSig` struct on
+`ProgramSource`. v2 moves them into the IR for the same reason
+as spec constants: the IR should be self-contained.
+
 ### Spec constant semantics
 
 Spec constants are declared as IR instructions at the top of the
@@ -638,10 +701,11 @@ v1 stored spec constants as a separate `Vec[ConstantDesc]` sidecar
 on `ProgramSource`. This meant the IR was not self-contained — you
 needed two data structures to fully describe a program, and the
 compiler had to cross-reference them during lowering. Making spec
-constants IR instructions means:
-- The IR is a single `Vec[IRInst]` that fully describes the program
-- Hashing for compilation cache is `hash(ir_bytes)` — one blob
-- Serialization/deserialization is one array, not two structures
+constants and param declarations IR instructions means:
+- The program is fully described by `ir` + `strings` (two arrays,
+  tightly coupled, no external metadata)
+- Hashing for the compilation cache covers both arrays
+- Serialization/deserialization is straightforward
 
 ### Reduction semantics
 
@@ -679,10 +743,38 @@ type IRInst = {
     d2: i32,       // source operand 2
     d3: i32,       // source operand 3 (fma, select, clamp)
 }
+```
+
+**Header instruction encoding:**
+
+`Param` and `SpecConstant` instructions use the same four i32
+slots but with different semantics than compute instructions.
+Names are stored in the `ProgramSource.strings` pool and
+referenced by index.
+
+```
+Param:
+    dtype  = parameter dtype
+    d0     = index into strings[] (parameter name)
+    d1     = ParamMode enum (0=In, 1=Out, 2=InOut, 3=Scratch)
+    d2     = tensor rank
+    d3     = unused
+
+SpecConstant:
+    dtype  = constant dtype
+    d0     = index into strings[] (constant name)
+    d1     = default value bits (low 32 bits of Scalar.bits)
+    d2     = default value bits (high 32 bits, for f64/i64)
+    d3     = unused
+```
+
+Compute instructions use `d0` as the destination virtual register
+and `d1`–`d3` as source operand references. The `op` field
+determines which encoding applies.
 
 enum IROp =
-    // Spec constants
-    | SpecConstant
+    // Program header (must precede computation)
+    | Param | SpecConstant
     // Memory
     | Load | Store
     // Compute
@@ -918,7 +1010,7 @@ trait Backend =
     fn free(self: &Self, mem: *mut Memory)
     fn compile(self: &Self, info: DeviceInfo, source: ProgramSource) -> Result[*mut Program, SubstrateError]
     fn dispatch(self: &Self, stream: *mut Stream, prog: *mut Program, grid: [usize; 3], bindings: Bindings) -> Result[*mut Event, SubstrateError]
-    fn copy_bytes(self: &Self, stream: *mut Stream, src: *mut u8, dst: *mut u8, size: usize) -> *mut Event
+    fn copy_bytes(self: &Self, stream: *mut Stream, src: *mut u8, dst: *mut u8, size: usize) -> Result[*mut Event, SubstrateError]
     fn stream_create(self: &Self, device: *mut Device) -> *mut Stream
     fn stream_sync(self: &Self, stream: *mut Stream)
     fn event_wait(self: &Self, event: *mut Event)
@@ -1063,9 +1155,10 @@ Session  Deliverable
          dispatch validates bindings + alias checks.
 
   3      IR definition: IROp enum, IRInst struct with
-         virtual register model. SpecConstant as IR
-         instruction. parse_ir_text for testing. IR
-         validation pass (value liveness, def-before-use).
+         virtual register model. Param and SpecConstant as
+         IR instructions. parse_ir_text for testing. IR
+         validation pass (value liveness, def-before-use,
+         param declarations before computation).
 
   4      IR → CPU compiler: lower to With functions via
          LLVM. parallel → sequential. Virtual registers →
@@ -1084,8 +1177,9 @@ Session  Deliverable
          with arena_alloc_view.
 
   8      Event timing, compilation cache (keyed by
-         hash(device_info.name, ir_bytes)). Benchmark:
-         elementwise add CPU vs Metal.
+         hash(backend_id, codegen_capabilities, ir_bytes,
+         string_bytes)). Benchmark: elementwise add CPU
+         vs Metal.
 ```
 
 ### Phase 2: Core programs (5 sessions)
@@ -1149,7 +1243,10 @@ If all six work cleanly, the abstraction is correct.
 | Grid exceeds limits → error | Silent clamping hides bugs. Grid decomposition belongs to the framework layer which has workload context. |
 | Subgroup size from device | Hardcoding 32 breaks on AMD (64). Compile-time constant per device is the only portable approach. |
 | Virtual registers in IR | Without value numbering, backend emitters reconstruct dataflow from sequential patterns. Flash attention has ~15 live intermediates — the IR should track them, not each backend independently. |
-| Spec constants as IR instructions | Makes IR self-contained. One blob to hash, serialize, and compile. No sidecar cross-referencing. |
+| Spec constants as IR instructions | Program metadata lives in the IR, not sidecars. Names reference the string pool. No cross-referencing separate structures during lowering. |
+| Param declarations as IR instructions | Same rationale as spec constants. program_sig() is derived from IR Param instructions, not a separate input structure. Dispatch validation is derivable from the compiled program alone. |
+| String pool in ProgramSource | IRInst is fixed-size (op + dtype + 4×i32). Names for params and spec constants live in a companion string pool, referenced by index. Keeps instructions compact and cache-friendly while supporting variable-length data. |
+| Cache key uses codegen capabilities, not device name | Device names are not a stable codegen identity. Two devices can share a name while differing in limits. Key includes subgroup_size, max_shared_memory, max_workgroup_size, kind. |
 | Structured IR, no text input to compile | String parsing has no place in the hot path. Text parser is a separate utility function. |
 | Dispatch returns Result | Fail loudly on mismatch. No silent corruption. |
 | Single dispatch function with explicit grid | Two near-identical functions (dispatch vs dispatch_grid) is unnecessary surface area. Explicit grid is always known after compilation. |

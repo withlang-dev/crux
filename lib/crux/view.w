@@ -1,6 +1,10 @@
 use crux.core
 use crux.errors
 
+fn add_stride(offset: Size, stride: Stride, index: Size) -> Size:
+    let next = offset as Stride + stride * index as Stride
+    next as Size
+
 pub fn view(mem: *mut Memory, desc: ViewDesc) -> Result[View, SubstrateError]:
     if not shape_is_valid(desc.shape):
         return Err(.InvalidView("shape rank must be between 0 and 8"))
@@ -26,7 +30,7 @@ pub fn view_contiguous(mem: *mut Memory, shape: Shape, dtype: DType) -> View:
     }
 
 pub fn view_slice(v: View, dim: i32, start: Size, end: Size) -> View:
-    let new_offset = v.offset + start * strides_get(v.strides, dim) as Size
+    let new_offset = add_stride(v.offset, strides_get(v.strides, dim), start)
     let new_shape = shape_set(v.shape, dim, end - start)
     View {
         memory: v.memory,
@@ -93,7 +97,71 @@ pub fn view_byte_size(v: View) -> Size:
     shape_elem_count(v.shape) * dtype_size(v.dtype)
 
 pub fn view_offset_of(v: View, indices: Shape) -> Size:
-    var offset: Size = v.offset
+    var offset = v.offset as Stride
     for i in 0..v.shape.rank:
-        offset = offset + shape_get(indices, i) * strides_get(v.strides, i) as Size
-    offset
+        offset = offset + shape_get(indices, i) as Stride * strides_get(v.strides, i)
+    offset as Size
+
+pub fn view_byte_range(v: View) -> (Size, Size):
+    if view_elem_count(v) == 0usize:
+        return (v.offset, v.offset)
+    var min_off = v.offset as Stride
+    var max_off = v.offset as Stride
+    for i in 0..v.shape.rank:
+        let dim = shape_get(v.shape, i)
+        if dim == 0usize:
+            continue
+        let stride = strides_get(v.strides, i)
+        let extent = (dim - 1usize) as Stride * stride
+        if extent >= 0isize:
+            max_off = max_off + extent
+        else:
+            min_off = min_off + extent
+    (min_off as Size, (max_off + dtype_size(v.dtype) as Stride) as Size)
+
+pub fn view_canonicalize(v: View) -> View:
+    var normalized = v
+    var i: i32 = 0
+    while i < normalized.shape.rank:
+        if shape_get(normalized.shape, i) == 1usize:
+            normalized.strides = strides_set(normalized.strides, i, 0isize)
+        i = i + 1
+
+    var out_shape = shape_scalar()
+    var out_strides = strides_zero()
+    var out_rank: i32 = 0
+    i = 0
+    while i < normalized.shape.rank:
+        let dim = shape_get(normalized.shape, i)
+        let stride = strides_get(normalized.strides, i)
+        if out_rank == 0:
+            out_shape = shape_set(out_shape, 0, dim)
+            out_shape.rank = 1
+            out_strides = strides_set(out_strides, 0, stride)
+            out_strides.rank = 1
+            out_rank = 1
+            i = i + 1
+            continue
+        let prev = out_rank - 1
+        let prev_dim = shape_get(out_shape, prev)
+        let prev_stride = strides_get(out_strides, prev)
+        if prev_stride != 0isize and stride != 0isize and prev_stride == dim as Stride * stride:
+            out_shape = shape_set(out_shape, prev, prev_dim * dim)
+            out_shape.rank = out_rank
+            out_strides = strides_set(out_strides, prev, stride)
+            out_strides.rank = out_rank
+        else:
+            out_shape = shape_set(out_shape, out_rank, dim)
+            out_shape.rank = out_rank + 1
+            out_strides = strides_set(out_strides, out_rank, stride)
+            out_strides.rank = out_rank + 1
+            out_rank = out_rank + 1
+        i = i + 1
+
+    View {
+        memory: normalized.memory,
+        offset: normalized.offset,
+        shape: out_shape,
+        strides: out_strides,
+        dtype: normalized.dtype,
+    }

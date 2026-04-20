@@ -176,8 +176,41 @@ pub type Scalar {
     dtype: DType,
 }
 
+pub type IRInst {
+    op: i32,
+    dtype: DType,
+    d0: i32,
+    d1: i32,
+    d2: i32,
+    d3: i32,
+}
+
 pub fn scalar_i32(v: i32) -> Scalar:
     Scalar { bits: v as u64, dtype: .Int32 }
+
+pub fn scalar_i8(v: i8) -> Scalar:
+    let raw: u8 = unsafe: transmute[u8](v)
+    Scalar { bits: raw as u64, dtype: .Int8 }
+
+pub fn scalar_i16(v: i16) -> Scalar:
+    let raw: u16 = unsafe: transmute[u16](v)
+    Scalar { bits: raw as u64, dtype: .Int16 }
+
+pub fn scalar_i64(v: i64) -> Scalar:
+    let raw: u64 = unsafe: transmute[u64](v)
+    Scalar { bits: raw, dtype: .Int64 }
+
+pub fn scalar_u8(v: u8) -> Scalar:
+    Scalar { bits: v as u64, dtype: .UInt8 }
+
+pub fn scalar_u16(v: u16) -> Scalar:
+    Scalar { bits: v as u64, dtype: .UInt16 }
+
+pub fn scalar_u32(v: u32) -> Scalar:
+    Scalar { bits: v as u64, dtype: .UInt32 }
+
+pub fn scalar_u64(v: u64) -> Scalar:
+    Scalar { bits: v, dtype: .UInt64 }
 
 pub fn scalar_f32(v: f32) -> Scalar:
     let raw: u32 = unsafe: transmute[u32](v)
@@ -186,6 +219,25 @@ pub fn scalar_f32(v: f32) -> Scalar:
 pub fn scalar_f64(v: f64) -> Scalar:
     let raw: u64 = unsafe: transmute[u64](v)
     Scalar { bits: raw, dtype: .Float64 }
+
+pub fn scalar_f16_bits(bits: u16) -> Scalar:
+    Scalar { bits: bits as u64, dtype: .Float16 }
+
+pub fn scalar_bf16_bits(bits: u16) -> Scalar:
+    Scalar { bits: bits as u64, dtype: .BFloat16 }
+
+pub fn scalar_low_i32(bits: u64) -> i32:
+    let raw: u32 = bits as u32
+    unsafe: transmute[i32](raw)
+
+pub fn scalar_high_i32(bits: u64) -> i32:
+    let raw: u32 = (bits >> 32) as u32
+    unsafe: transmute[i32](raw)
+
+pub fn scalar_bits_from_words(low: i32, high: i32) -> u64:
+    let low_u: u32 = unsafe: transmute[u32](low)
+    let high_u: u32 = unsafe: transmute[u32](high)
+    (low_u as u64) | ((high_u as u64) << 32)
 
 pub enum DeviceKind { CPU | GPU | Accelerator }
 
@@ -228,15 +280,15 @@ pub type ParamDesc {
     dtype: DType,
 }
 
-pub type ConstantDesc {
-    name: str,
-    dtype: DType,
-    value: Scalar,
-}
-
 pub type ProgramSig {
     params: Vec[ParamDesc],
-    constants: Vec[ConstantDesc],
+}
+
+pub type ProgramSource {
+    ir: Vec[IRInst],
+    aux: Vec[i32],
+    strings: Vec[str],
+    entry: str,
 }
 
 pub type BindEntry {

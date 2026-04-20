@@ -31,9 +31,32 @@ type ParamSymbols {
     name7: str,
 }
 
-pub fn parse_ir_text(text: str) -> Result[IRProgram, IRTextError]:
-    var prog = ir_program()
-    var params = param_symbols()
+type ParseState {
+    source: ProgramSource,
+    params: ParamSymbols,
+    locals: ParamSymbols,
+    privates: ParamSymbols,
+    next_value: i32,
+}
+
+type StringIntern {
+    source: ProgramSource,
+    index: i32,
+}
+
+pub fn parse_ir_text(text: str) -> Result[ProgramSource, IRTextError]:
+    var state = ParseState {
+        source: ProgramSource {
+            ir: Vec.new(),
+            aux: Vec.new(),
+            strings: Vec.new(),
+            entry: "main",
+        },
+        params: param_symbols(),
+        locals: param_symbols(),
+        privates: param_symbols(),
+        next_value: 0,
+    }
     var offset: i32 = 0
     let limit = text.len() as i32
 
@@ -45,39 +68,55 @@ pub fn parse_ir_text(text: str) -> Result[IRProgram, IRTextError]:
             continue
         if starts_with(line, "#") or starts_with(line, "//"):
             continue
+        if starts_with(line, "spec_constant"):
+            state = parse_spec_constant_line(line, state)?
+            continue
         if starts_with(line, "param"):
-            let parsed = parse_param_line(line, prog, params)?
-            prog = parsed.prog
-            params = parsed.params
+            state = parse_param_line(line, state)?
+            continue
+        if starts_with(line, "local") or starts_with(line, "private"):
+            state = parse_storage_line(line, state)?
             continue
         if starts_with(line, "store"):
-            prog = parse_store_line(line, prog, params)?
+            state = parse_store_line(line, state)?
             continue
-        if starts_with(line, "parallel") or starts_with(line, "loop") or starts_with(line, "block_begin") or starts_with(line, "block_end"):
-            prog = parse_control_line(line, prog)?
+        if starts_with(line, "parallel") or starts_with(line, "loop") or starts_with(line, "block_begin") or starts_with(line, "block_end") or starts_with(line, "if") or starts_with(line, "barrier"):
+            state = parse_control_line(line, state)?
             continue
         if starts_with(line, "return"):
-            prog.insts.push(ir_inst(IROP_RETURN, .Int32, 0, 0, 0, 0))
+            state.source.ir.push(ir_inst(IROP_RETURN, .Int32, 0, 0, 0, 0))
             continue
         if starts_with(line, "%"):
-            prog = parse_value_line(line, prog, params)?
+            state = parse_value_line(line, state)?
             continue
         return Err(.ParseError("unknown IR text line"))
 
-    Ok(prog)
+    Ok(state.source)
 
-type ParamParse {
-    prog: IRProgram,
-    params: ParamSymbols,
-}
+fn parse_spec_constant_line(line: str, state: ParseState) -> Result[ParseState, IRTextError]:
+    var cursor = skip_ws(line, 0)
+    cursor = expect_token(line, cursor, "spec_constant")?
+    let name_scan = scan_token(line, cursor)
+    if name_scan.token == "":
+        return Err(.ParseError("spec_constant line missing name"))
+    cursor = name_scan.next
+    let dtype_scan = scan_token(line, cursor)
+    let dtype = parse_dtype(dtype_scan.token)?
+    cursor = dtype_scan.next
+    let literal_scan = scan_token(line, cursor)
+    let interned = intern_string(state.source, name_scan.token)
+    let literal = parse_scalar_literal(dtype, literal_scan.token)?
+    var next_state = state
+    next_state.source = interned.source
+    next_state.source.ir.push(ir_spec_constant_inst(interned.index, dtype, scalar_low_i32(literal.bits), scalar_high_i32(literal.bits)))
+    Ok(next_state)
 
-fn parse_param_line(line: str, prog: IRProgram, params: ParamSymbols) -> Result[ParamParse, IRTextError]:
+fn parse_param_line(line: str, state: ParseState) -> Result[ParseState, IRTextError]:
     var cursor = skip_ws(line, 0)
     cursor = expect_token(line, cursor, "param")?
     let name_scan = scan_token(line, cursor)
     if name_scan.token == "":
         return Err(.ParseError("param line missing name"))
-    let name = name_scan.token
     cursor = name_scan.next
     let mode_scan = scan_token(line, cursor)
     let mode = parse_param_mode(mode_scan.token)?
@@ -87,37 +126,58 @@ fn parse_param_line(line: str, prog: IRProgram, params: ParamSymbols) -> Result[
     cursor = shape_scan.next
     let dtype_scan = scan_token(line, cursor)
     let dtype = parse_dtype(dtype_scan.token)?
-    var next_prog = prog
-    next_prog.param_names.push(name)
-    next_prog.param_modes.push(mode)
-    next_prog.param_ranks.push(rank)
-    next_prog.param_dtypes.push(dtype)
-    next_prog.num_params = next_prog.num_params + 1
-    let next_params = param_symbols_add(params, name)?
-    Ok(ParamParse {
-        prog: next_prog,
-        params: next_params,
-    })
+    let interned = intern_string(state.source, name_scan.token)
+    var next_state = state
+    next_state.source = interned.source
+    next_state.source.ir.push(ir_param_inst(interned.index, mode, rank, dtype))
+    next_state.params = param_symbols_add(state.params, name_scan.token)?
+    Ok(next_state)
 
-fn parse_store_line(line: str, prog: IRProgram, params: ParamSymbols) -> Result[IRProgram, IRTextError]:
+fn parse_storage_line(line: str, state: ParseState) -> Result[ParseState, IRTextError]:
+    var cursor = skip_ws(line, 0)
+    let op_scan = scan_token(line, cursor)
+    let op_name = op_scan.token
+    cursor = op_scan.next
+    let name_scan = scan_token(line, cursor)
+    if name_scan.token == "":
+        return Err(.ParseError("storage line missing name"))
+    cursor = name_scan.next
+    let shape_scan = scan_bracket_group(line, cursor)?
+    let rank = count_rank(shape_scan.inner)
+    cursor = shape_scan.next
+    let dtype_scan = scan_token(line, cursor)
+    let dtype = parse_dtype(dtype_scan.token)?
+    let interned = intern_string(state.source, name_scan.token)
+    var next_state = state
+    next_state.source = interned.source
+    let aux_base = next_state.source.aux.len() as i32
+    next_state.source.aux = append_index_refs(next_state.source.aux, shape_scan.inner)?
+    let op = if op_name == "local" then IROP_LOCAL else IROP_PRIVATE
+    next_state.source.ir.push(ir_inst(op, dtype, interned.index, rank, aux_base, 0))
+    if op_name == "local":
+        next_state.locals = param_symbols_add(state.locals, name_scan.token)?
+    else:
+        next_state.privates = param_symbols_add(state.privates, name_scan.token)?
+    Ok(next_state)
+
+fn parse_store_line(line: str, state: ParseState) -> Result[ParseState, IRTextError]:
     var cursor = skip_ws(line, 0)
     cursor = expect_token(line, cursor, "store")?
     let name_scan = scan_token(line, cursor)
-    let param_index = param_symbols_find(params, name_scan.token)
-    if param_index < 0:
-        return Err(.ParseError("store references unknown param"))
+    let storage_ref = resolve_named_ref(state, name_scan.token)?
     cursor = name_scan.next
     let group_scan = scan_bracket_group(line, cursor)?
-    var next_prog = prog
-    let aux_base = next_prog.aux.len() as i32
-    next_prog.aux = append_index_refs(next_prog.aux, group_scan.inner)?
+    var next_state = state
+    let aux_base = next_state.source.aux.len() as i32
+    next_state.source.aux = append_index_refs(next_state.source.aux, group_scan.inner)?
     cursor = group_scan.next
     let value_scan = scan_token(line, cursor)
     let value_ref = parse_value_ref(value_scan.token)?
-    next_prog.insts.push(ir_inst(IROP_STORE, .Int32, ir_param_ref(param_index), aux_base, value_ref, 0))
-    Ok(next_prog)
+    let dtype = storage_dtype_by_ref(next_state.source, storage_ref)?
+    next_state.source.ir.push(ir_inst(IROP_STORE, dtype, storage_ref, aux_base, value_ref, 0))
+    Ok(next_state)
 
-fn parse_control_line(line: str, prog: IRProgram) -> Result[IRProgram, IRTextError]:
+fn parse_control_line(line: str, state: ParseState) -> Result[ParseState, IRTextError]:
     var cursor = skip_ws(line, 0)
     let op_scan = scan_token(line, cursor)
     let op_name = op_scan.token
@@ -127,11 +187,29 @@ fn parse_control_line(line: str, prog: IRProgram) -> Result[IRProgram, IRTextErr
         let block_scan = scan_token(line, cursor)
         let block_id = parse_i32_ascii(block_scan.token)?
         let op = if op_name == "block_begin" then IROP_BLOCK_BEGIN else IROP_BLOCK_END
-        var next_prog = prog
-        next_prog.insts.push(ir_inst(op, .Int32, block_id, 0, 0, 0))
-        return Ok(next_prog)
+        var next_state = state
+        next_state.source.ir.push(ir_inst(op, .Int32, block_id, 0, 0, 0))
+        return Ok(next_state)
 
-    if op_name == "parallel" or op_name == "loop":
+    if op_name == "barrier":
+        var next_state = state
+        next_state.source.ir.push(ir_inst(IROP_BARRIER, .Int32, 0, 0, 0, 0))
+        return Ok(next_state)
+
+    if op_name == "if":
+        let cond_scan = scan_token(line, cursor)
+        let cond_ref = parse_value_ref(cond_scan.token)?
+        cursor = cond_scan.next
+        let then_scan = scan_token(line, cursor)
+        let then_block = parse_i32_ascii(then_scan.token)?
+        cursor = then_scan.next
+        let else_scan = scan_token(line, cursor)
+        let else_block = if else_scan.token == "" then -1 else parse_i32_ascii(else_scan.token)?
+        var next_state = state
+        next_state.source.ir.push(ir_inst(IROP_IF, .Int32, 0, cond_ref, then_block, else_block))
+        return Ok(next_state)
+
+    if op_name == "parallel" or op_name == "loop" or op_name == "parallel_grid" or op_name == "parallel_workgroup" or op_name == "parallel_subgroup":
         let slot_scan = scan_token(line, cursor)
         let slot = parse_i32_ascii(slot_scan.token)?
         cursor = slot_scan.next
@@ -143,18 +221,18 @@ fn parse_control_line(line: str, prog: IRProgram) -> Result[IRProgram, IRTextErr
         cursor = end_scan.next
         let block_scan = scan_token(line, cursor)
         let block_id = parse_i32_ascii(block_scan.token)?
-        let op = if op_name == "parallel" then IROP_PARALLEL else IROP_LOOP
-        var next_prog = prog
-        next_prog.insts.push(ir_inst(op, .Int32, slot, start_ref, end_ref, block_id))
-        return Ok(next_prog)
+        let op = if op_name == "parallel" then IROP_PARALLEL else if op_name == "loop" then IROP_LOOP else if op_name == "parallel_grid" then IROP_PARALLEL_GRID else if op_name == "parallel_workgroup" then IROP_PARALLEL_WORKGROUP else IROP_PARALLEL_SUBGROUP
+        var next_state = state
+        next_state.source.ir.push(ir_inst(op, .Int32, slot, start_ref, end_ref, block_id))
+        return Ok(next_state)
 
     Err(.ParseError("unsupported control opcode"))
 
-fn parse_value_line(line: str, prog: IRProgram, params: ParamSymbols) -> Result[IRProgram, IRTextError]:
+fn parse_value_line(line: str, state: ParseState) -> Result[ParseState, IRTextError]:
     var cursor = skip_ws(line, 0)
     let id_scan = scan_token(line, cursor)
     let value_id = parse_value_ref(id_scan.token)?
-    if value_id != prog.insts.len() as i32:
+    if value_id != state.next_value:
         return Err(.ParseError("value ids must be sequential"))
     cursor = id_scan.next
     cursor = expect_token(line, cursor, "=")?
@@ -164,40 +242,40 @@ fn parse_value_line(line: str, prog: IRProgram, params: ParamSymbols) -> Result[
 
     if op_name == "const":
         let dtype_scan = scan_token(line, cursor)
-        if dtype_scan.token != "i32":
-            return Err(.ParseError("text parser currently supports only const i32"))
+        let dtype = parse_dtype(dtype_scan.token)?
         cursor = dtype_scan.next
         let literal_scan = scan_token(line, cursor)
-        let literal = parse_i32_ascii(literal_scan.token)?
-        var next_prog = prog
-        next_prog.insts.push(ir_inst(IROP_CONST, .Int32, literal, 0, 0, 0))
-        return Ok(next_prog)
+        let literal = parse_scalar_literal(dtype, literal_scan.token)?
+        var next_state = state
+        next_state.source.ir.push(ir_const_scalar(value_id, literal))
+        next_state.next_value = next_state.next_value + 1
+        return Ok(next_state)
 
     if op_name == "load":
         let name_scan = scan_token(line, cursor)
-        let param_index = param_symbols_find(params, name_scan.token)
-        if param_index < 0:
-            return Err(.ParseError("load references unknown param"))
+        let storage_ref = resolve_named_ref(state, name_scan.token)?
         cursor = name_scan.next
         let group_scan = scan_bracket_group(line, cursor)?
-        var next_prog = prog
-        let aux_base = next_prog.aux.len() as i32
-        next_prog.aux = append_index_refs(next_prog.aux, group_scan.inner)?
-        let dtype = param_dtype_by_index(next_prog, param_index)
-        next_prog.insts.push(ir_inst(IROP_LOAD, dtype, ir_param_ref(param_index), aux_base, 0, 0))
-        return Ok(next_prog)
+        var next_state = state
+        let aux_base = next_state.source.aux.len() as i32
+        next_state.source.aux = append_index_refs(next_state.source.aux, group_scan.inner)?
+        let dtype = storage_dtype_by_ref(next_state.source, storage_ref)?
+        next_state.source.ir.push(ir_inst(IROP_LOAD, dtype, value_id, storage_ref, aux_base, 0))
+        next_state.next_value = next_state.next_value + 1
+        return Ok(next_state)
 
-    if op_name == "add" or op_name == "sub" or op_name == "mul" or op_name == "div" or op_name == "min" or op_name == "max":
+    if op_name == "add" or op_name == "sub" or op_name == "mul" or op_name == "div" or op_name == "mod" or op_name == "add_sat" or op_name == "sub_sat" or op_name == "and" or op_name == "or" or op_name == "xor" or op_name == "shl" or op_name == "shr" or op_name == "min" or op_name == "max":
         let lhs_scan = scan_token(line, cursor)
         let lhs = parse_value_ref(lhs_scan.token)?
         cursor = lhs_scan.next
         let rhs_scan = scan_token(line, cursor)
         let rhs = parse_value_ref(rhs_scan.token)?
         let op = parse_binop(op_name)?
-        let dtype = value_dtype_by_ref(prog, lhs)?
-        var next_prog = prog
-        next_prog.insts.push(ir_inst(op, dtype, lhs, rhs, 0, 0))
-        return Ok(next_prog)
+        let dtype = value_dtype_by_ref(state.source, lhs)?
+        var next_state = state
+        next_state.source.ir.push(ir_inst(op, dtype, value_id, lhs, rhs, 0))
+        next_state.next_value = next_state.next_value + 1
+        return Ok(next_state)
 
     if op_name == "eq" or op_name == "ne" or op_name == "lt" or op_name == "gt" or op_name == "le" or op_name == "ge":
         let lhs_scan = scan_token(line, cursor)
@@ -206,9 +284,10 @@ fn parse_value_line(line: str, prog: IRProgram, params: ParamSymbols) -> Result[
         let rhs_scan = scan_token(line, cursor)
         let rhs = parse_value_ref(rhs_scan.token)?
         let op = parse_cmpop(op_name)?
-        var next_prog = prog
-        next_prog.insts.push(ir_inst(op, .Int32, lhs, rhs, 0, 0))
-        return Ok(next_prog)
+        var next_state = state
+        next_state.source.ir.push(ir_inst(op, .Int32, value_id, lhs, rhs, 0))
+        next_state.next_value = next_state.next_value + 1
+        return Ok(next_state)
 
     if op_name == "fma":
         let a_scan = scan_token(line, cursor)
@@ -219,18 +298,32 @@ fn parse_value_line(line: str, prog: IRProgram, params: ParamSymbols) -> Result[
         cursor = b_scan.next
         let c_scan = scan_token(line, cursor)
         let c = parse_value_ref(c_scan.token)?
-        let dtype = value_dtype_by_ref(prog, a)?
-        var next_prog = prog
-        next_prog.insts.push(ir_inst(IROP_FMA, dtype, a, b, c, 0))
-        return Ok(next_prog)
+        let dtype = value_dtype_by_ref(state.source, a)?
+        var next_state = state
+        next_state.source.ir.push(ir_inst(IROP_FMA, dtype, value_id, a, b, c))
+        next_state.next_value = next_state.next_value + 1
+        return Ok(next_state)
 
-    if op_name == "neg":
+    if op_name == "neg" or op_name == "abs" or op_name == "not" or op_name == "popcount" or op_name == "clz" or op_name == "ctz" or op_name == "exp" or op_name == "log" or op_name == "log2" or op_name == "sqrt" or op_name == "rsqrt" or op_name == "sin" or op_name == "cos" or op_name == "tanh" or op_name == "floor" or op_name == "ceil" or op_name == "round":
         let value_scan = scan_token(line, cursor)
         let value = parse_value_ref(value_scan.token)?
-        let dtype = value_dtype_by_ref(prog, value)?
-        var next_prog = prog
-        next_prog.insts.push(ir_inst(IROP_NEG, dtype, value, 0, 0, 0))
-        return Ok(next_prog)
+        let dtype = value_dtype_by_ref(state.source, value)?
+        let op = if op_name == "neg" then IROP_NEG else if op_name == "abs" then IROP_ABS else if op_name == "not" then IROP_NOT else if op_name == "popcount" then IROP_POPCOUNT else if op_name == "clz" then IROP_CLZ else if op_name == "ctz" then IROP_CTZ else if op_name == "exp" then IROP_EXP else if op_name == "log" then IROP_LOG else if op_name == "log2" then IROP_LOG2 else if op_name == "sqrt" then IROP_SQRT else if op_name == "rsqrt" then IROP_RSQRT else if op_name == "sin" then IROP_SIN else if op_name == "cos" then IROP_COS else if op_name == "tanh" then IROP_TANH else if op_name == "floor" then IROP_FLOOR else if op_name == "ceil" then IROP_CEIL else IROP_ROUND
+        var next_state = state
+        next_state.source.ir.push(ir_inst(op, dtype, value_id, value, 0, 0))
+        next_state.next_value = next_state.next_value + 1
+        return Ok(next_state)
+
+    if op_name == "cast":
+        let dtype_scan = scan_token(line, cursor)
+        let target_dtype = parse_dtype(dtype_scan.token)?
+        cursor = dtype_scan.next
+        let value_scan = scan_token(line, cursor)
+        let value = parse_value_ref(value_scan.token)?
+        var next_state = state
+        next_state.source.ir.push(ir_inst(IROP_CAST, target_dtype, value_id, value, 0, 0))
+        next_state.next_value = next_state.next_value + 1
+        return Ok(next_state)
 
     if op_name == "select":
         let cond_scan = scan_token(line, cursor)
@@ -241,10 +334,11 @@ fn parse_value_line(line: str, prog: IRProgram, params: ParamSymbols) -> Result[
         cursor = true_scan.next
         let false_scan = scan_token(line, cursor)
         let on_false = parse_value_ref(false_scan.token)?
-        let dtype = value_dtype_by_ref(prog, on_true)?
-        var next_prog = prog
-        next_prog.insts.push(ir_inst(IROP_SELECT, dtype, cond, on_true, on_false, 0))
-        return Ok(next_prog)
+        let dtype = value_dtype_by_ref(state.source, on_true)?
+        var next_state = state
+        next_state.source.ir.push(ir_inst(IROP_SELECT, dtype, value_id, cond, on_true, on_false))
+        next_state.next_value = next_state.next_value + 1
+        return Ok(next_state)
 
     if op_name == "clamp":
         let value_scan = scan_token(line, cursor)
@@ -255,10 +349,40 @@ fn parse_value_line(line: str, prog: IRProgram, params: ParamSymbols) -> Result[
         cursor = lo_scan.next
         let hi_scan = scan_token(line, cursor)
         let hi = parse_value_ref(hi_scan.token)?
-        let dtype = value_dtype_by_ref(prog, value)?
-        var next_prog = prog
-        next_prog.insts.push(ir_inst(IROP_CLAMP, dtype, value, lo, hi, 0))
-        return Ok(next_prog)
+        let dtype = value_dtype_by_ref(state.source, value)?
+        var next_state = state
+        next_state.source.ir.push(ir_inst(IROP_CLAMP, dtype, value_id, value, lo, hi))
+        next_state.next_value = next_state.next_value + 1
+        return Ok(next_state)
+
+    if op_name == "reduce_sum" or op_name == "reduce_max" or op_name == "reduce_min" or op_name == "reduce_prod":
+        let start_scan = scan_token(line, cursor)
+        let start_ref = parse_index_ref(start_scan.token)?
+        cursor = start_scan.next
+        let end_scan = scan_token(line, cursor)
+        let end_ref = parse_index_ref(end_scan.token)?
+        cursor = end_scan.next
+        let group_scan = scan_bracket_group(line, cursor)?
+        var next_state = state
+        let parts = trim_ascii(group_scan.inner)
+        let meta_base = next_state.source.aux.len() as i32
+        next_state.source.aux = append_reduce_meta(next_state.source.aux, parts)?
+        let body_ref = next_state.source.aux[meta_base + 2]
+        let dtype = value_dtype_by_ref(next_state.source, body_ref)?
+        let op = if op_name == "reduce_sum" then IROP_REDUCE_SUM else if op_name == "reduce_max" then IROP_REDUCE_MAX else if op_name == "reduce_min" then IROP_REDUCE_MIN else IROP_REDUCE_PROD
+        next_state.source.ir.push(ir_inst(op, dtype, value_id, start_ref, end_ref, meta_base))
+        next_state.next_value = next_state.next_value + 1
+        return Ok(next_state)
+
+    if op_name == "collective_allreduce_sum" or op_name == "collective_allreduce_max" or op_name == "collective_allgather" or op_name == "collective_broadcast" or op_name == "collective_reduce_scatter":
+        let value_scan = scan_token(line, cursor)
+        let input_ref = parse_value_ref(value_scan.token)?
+        let dtype = value_dtype_by_ref(state.source, input_ref)?
+        let op = if op_name == "collective_allreduce_sum" then IROP_COLLECTIVE_ALLREDUCE_SUM else if op_name == "collective_allreduce_max" then IROP_COLLECTIVE_ALLREDUCE_MAX else if op_name == "collective_allgather" then IROP_COLLECTIVE_ALLGATHER else if op_name == "collective_broadcast" then IROP_COLLECTIVE_BROADCAST else IROP_COLLECTIVE_REDUCE_SCATTER
+        var next_state = state
+        next_state.source.ir.push(ir_inst(op, dtype, value_id, input_ref, 0, 0))
+        next_state.next_value = next_state.next_value + 1
+        return Ok(next_state)
 
     Err(.ParseError("unsupported IR text opcode"))
 
@@ -342,43 +466,6 @@ fn count_rank(text: str) -> i32:
         pos = pos + 1
     count
 
-fn append_index_refs(base: Vec[i32], text: str) -> Result[Vec[i32], IRTextError]:
-    let out = base
-    var pos: i32 = 0
-    let limit = text.len() as i32
-    while pos < limit:
-        pos = skip_group_sep(text, pos)
-        if pos >= limit:
-            break
-        let scan = scan_group_token(text, pos)
-        let value_ref = parse_index_ref(scan.token)?
-        out.push(value_ref)
-        pos = scan.next
-    Ok(out)
-
-fn skip_group_sep(text: str, start: i32) -> i32:
-    var pos = start
-    let limit = text.len() as i32
-    while pos < limit:
-        let ch = text.slice(pos, pos + 1)
-        if ch != " " and ch != "\t" and ch != ",":
-            return pos
-        pos = pos + 1
-    pos
-
-fn scan_group_token(text: str, start: i32) -> TokenScan:
-    let limit = text.len() as i32
-    var end = start
-    while end < limit:
-        let ch = text.slice(end, end + 1)
-        if ch == " " or ch == "\t" or ch == ",":
-            break
-        end = end + 1
-    TokenScan {
-        token: text.slice(start, end),
-        next: end,
-    }
-
 fn parse_param_mode(token: str) -> Result[ParamMode, IRTextError]:
     if token == "in":
         return Ok(.In)
@@ -405,23 +492,217 @@ fn parse_dtype(token: str) -> Result[DType, IRTextError]:
     if token == "bf16": return Ok(.BFloat16)
     Err(.ParseError("unknown dtype"))
 
-fn parse_binop(token: str) -> Result[i32, IRTextError]:
-    if token == "add": return Ok(IROP_ADD)
-    if token == "sub": return Ok(IROP_SUB)
-    if token == "mul": return Ok(IROP_MUL)
-    if token == "div": return Ok(IROP_DIV)
-    if token == "min": return Ok(IROP_MIN)
-    if token == "max": return Ok(IROP_MAX)
+fn parse_binop(name: str) -> Result[i32, IRTextError]:
+    if name == "add": return Ok(IROP_ADD)
+    if name == "sub": return Ok(IROP_SUB)
+    if name == "mul": return Ok(IROP_MUL)
+    if name == "div": return Ok(IROP_DIV)
+    if name == "mod": return Ok(IROP_MOD)
+    if name == "add_sat": return Ok(IROP_ADD_SAT)
+    if name == "sub_sat": return Ok(IROP_SUB_SAT)
+    if name == "and": return Ok(IROP_AND)
+    if name == "or": return Ok(IROP_OR)
+    if name == "xor": return Ok(IROP_XOR)
+    if name == "shl": return Ok(IROP_SHL)
+    if name == "shr": return Ok(IROP_SHR)
+    if name == "min": return Ok(IROP_MIN)
+    if name == "max": return Ok(IROP_MAX)
     Err(.ParseError("unknown binary opcode"))
 
-fn parse_cmpop(token: str) -> Result[i32, IRTextError]:
-    if token == "eq": return Ok(IROP_EQ)
-    if token == "ne": return Ok(IROP_NE)
-    if token == "lt": return Ok(IROP_LT)
-    if token == "gt": return Ok(IROP_GT)
-    if token == "le": return Ok(IROP_LE)
-    if token == "ge": return Ok(IROP_GE)
+fn parse_cmpop(name: str) -> Result[i32, IRTextError]:
+    if name == "eq": return Ok(IROP_EQ)
+    if name == "ne": return Ok(IROP_NE)
+    if name == "lt": return Ok(IROP_LT)
+    if name == "gt": return Ok(IROP_GT)
+    if name == "le": return Ok(IROP_LE)
+    if name == "ge": return Ok(IROP_GE)
     Err(.ParseError("unknown compare opcode"))
+
+fn parse_i32_ascii(token: str) -> Result[i32, IRTextError]:
+    if token == "":
+        return Err(.ParseError("expected integer literal"))
+    var pos: i32 = 0
+    let limit = token.len() as i32
+    var sign: i32 = 1
+    if token.slice(0, 1) == "-":
+        sign = -1
+        pos = 1
+    if pos >= limit:
+        return Err(.ParseError("invalid integer literal"))
+    var out: i32 = 0
+    while pos < limit:
+        let ch = token.slice(pos, pos + 1)
+        if ch != "0" and ch != "1" and ch != "2" and ch != "3" and ch != "4" and ch != "5" and ch != "6" and ch != "7" and ch != "8" and ch != "9":
+            return Err(.ParseError("invalid integer literal"))
+        let digit = if ch == "0" then 0 else if ch == "1" then 1 else if ch == "2" then 2 else if ch == "3" then 3 else if ch == "4" then 4 else if ch == "5" then 5 else if ch == "6" then 6 else if ch == "7" then 7 else if ch == "8" then 8 else 9
+        out = out * 10 + digit
+        pos = pos + 1
+    Ok(out * sign)
+
+fn parse_u64_ascii(token: str) -> Result[u64, IRTextError]:
+    if token == "":
+        return Err(.ParseError("expected unsigned integer literal"))
+    var pos: i32 = 0
+    let limit = token.len() as i32
+    var out: u64 = 0u64
+    while pos < limit:
+        let ch = token.slice(pos, pos + 1)
+        if ch != "0" and ch != "1" and ch != "2" and ch != "3" and ch != "4" and ch != "5" and ch != "6" and ch != "7" and ch != "8" and ch != "9":
+            return Err(.ParseError("invalid unsigned integer literal"))
+        let digit = if ch == "0" then 0u64 else if ch == "1" then 1u64 else if ch == "2" then 2u64 else if ch == "3" then 3u64 else if ch == "4" then 4u64 else if ch == "5" then 5u64 else if ch == "6" then 6u64 else if ch == "7" then 7u64 else if ch == "8" then 8u64 else 9u64
+        out = out * 10u64 + digit
+        pos = pos + 1
+    Ok(out)
+
+fn parse_i64_ascii(token: str) -> Result[i64, IRTextError]:
+    if token == "":
+        return Err(.ParseError("expected integer literal"))
+    if token.slice(0, 1) == "-":
+        let magnitude = parse_u64_ascii(token.slice(1, token.len() as i32))?
+        if magnitude == 9223372036854775808u64:
+            return Ok(-9223372036854775807 - 1)
+        return Ok(-(magnitude as i64))
+    let magnitude = parse_u64_ascii(token)?
+    Ok(magnitude as i64)
+
+fn parse_hex_u64(token: str) -> Result[u64, IRTextError]:
+    if token == "":
+        return Err(.ParseError("expected hex literal digits"))
+    var pos: i32 = 0
+    let limit = token.len() as i32
+    var out: u64 = 0u64
+    while pos < limit:
+        let ch = token.slice(pos, pos + 1)
+        let digit = if ch == "0" then 0u64 else if ch == "1" then 1u64 else if ch == "2" then 2u64 else if ch == "3" then 3u64 else if ch == "4" then 4u64 else if ch == "5" then 5u64 else if ch == "6" then 6u64 else if ch == "7" then 7u64 else if ch == "8" then 8u64 else if ch == "9" then 9u64 else if ch == "a" or ch == "A" then 10u64 else if ch == "b" or ch == "B" then 11u64 else if ch == "c" or ch == "C" then 12u64 else if ch == "d" or ch == "D" then 13u64 else if ch == "e" or ch == "E" then 14u64 else if ch == "f" or ch == "F" then 15u64 else return Err(.ParseError("invalid hex literal"))
+        out = out * 16u64 + digit
+        pos = pos + 1
+    Ok(out)
+
+fn parse_f64_ascii(token: str) -> Result[f64, IRTextError]:
+    if token == "":
+        return Err(.ParseError("expected float literal"))
+    var pos: i32 = 0
+    let limit = token.len() as i32
+    var sign: f64 = 1.0
+    if token.slice(0, 1) == "-":
+        sign = -1.0
+        pos = 1
+    if pos >= limit:
+        return Err(.ParseError("invalid float literal"))
+    var whole: f64 = 0.0
+    var saw_digit = false
+    while pos < limit:
+        let ch = token.slice(pos, pos + 1)
+        if ch == ".":
+            break
+        if ch != "0" and ch != "1" and ch != "2" and ch != "3" and ch != "4" and ch != "5" and ch != "6" and ch != "7" and ch != "8" and ch != "9":
+            return Err(.ParseError("invalid float literal"))
+        let digit = if ch == "0" then 0.0 else if ch == "1" then 1.0 else if ch == "2" then 2.0 else if ch == "3" then 3.0 else if ch == "4" then 4.0 else if ch == "5" then 5.0 else if ch == "6" then 6.0 else if ch == "7" then 7.0 else if ch == "8" then 8.0 else 9.0
+        whole = whole * 10.0 + digit
+        saw_digit = true
+        pos = pos + 1
+    var frac: f64 = 0.0
+    var scale: f64 = 1.0
+    if pos < limit and token.slice(pos, pos + 1) == ".":
+        pos = pos + 1
+        while pos < limit:
+            let ch = token.slice(pos, pos + 1)
+            if ch != "0" and ch != "1" and ch != "2" and ch != "3" and ch != "4" and ch != "5" and ch != "6" and ch != "7" and ch != "8" and ch != "9":
+                return Err(.ParseError("invalid float literal"))
+            let digit = if ch == "0" then 0.0 else if ch == "1" then 1.0 else if ch == "2" then 2.0 else if ch == "3" then 3.0 else if ch == "4" then 4.0 else if ch == "5" then 5.0 else if ch == "6" then 6.0 else if ch == "7" then 7.0 else if ch == "8" then 8.0 else 9.0
+            scale = scale * 10.0
+            frac = frac + digit / scale
+            saw_digit = true
+            pos = pos + 1
+    if not saw_digit or pos != limit:
+        return Err(.ParseError("invalid float literal"))
+    Ok(sign * (whole + frac))
+
+fn dtype_bit_width(dtype: DType) -> i32:
+    if dtype == .Int8 or dtype == .UInt8:
+        return 8
+    if dtype == .Int16 or dtype == .UInt16 or dtype == .Float16 or dtype == .BFloat16:
+        return 16
+    if dtype == .Int32 or dtype == .UInt32 or dtype == .Float32:
+        return 32
+    if dtype == .Int64 or dtype == .UInt64 or dtype == .Float64:
+        return 64
+    0
+
+fn mask_bits(width: i32) -> u64:
+    if width >= 64:
+        return 18446744073709551615u64
+    (1u64 << width) - 1u64
+
+fn f32_to_f16_bits(value: f32) -> u16:
+    let raw: u32 = unsafe: transmute[u32](value)
+    let sign = (raw >> 16) & 32768u32
+    let exp = ((raw >> 23) & 255u32) as i32
+    let frac = raw & 8388607u32
+    if exp == 255:
+        if frac == 0u32:
+            return (sign | 31744u32) as u16
+        let payload = (frac >> 13) | 1u32
+        return (sign | 31744u32 | payload) as u16
+    let half_exp = exp - 127 + 15
+    if half_exp >= 31:
+        return (sign | 31744u32) as u16
+    if half_exp <= 0:
+        if half_exp < -10:
+            return sign as u16
+        let mant = frac | 8388608u32
+        let shift = 14 - half_exp
+        var rounded = mant >> shift
+        let round_bit = (mant >> (shift - 1)) & 1u32
+        if round_bit != 0u32:
+            rounded = rounded + 1u32
+        return (sign | rounded) as u16
+    var half_frac = frac >> 13
+    let round_bias = frac & 4095u32
+    if round_bias > 2048u32 or (round_bias == 2048u32 and (half_frac & 1u32) != 0u32):
+        half_frac = half_frac + 1u32
+        if half_frac == 1024u32:
+            return (sign | ((half_exp + 1) as u32 << 10)) as u16
+    (sign | ((half_exp as u32) << 10) | half_frac) as u16
+
+fn f32_to_bf16_bits(value: f32) -> u16:
+    let raw: u32 = unsafe: transmute[u32](value)
+    let lsb = (raw >> 16) & 1u32
+    let rounded = raw + 32767u32 + lsb
+    (rounded >> 16) as u16
+
+fn parse_scalar_literal(dtype: DType, token: str) -> Result[Scalar, IRTextError]:
+    if starts_with(token, "bits:0x"):
+        let raw = parse_hex_u64(token.slice(7, token.len() as i32))?
+        let width = dtype_bit_width(dtype)
+        if width < 64 and raw > mask_bits(width):
+            return Err(.ParseError("bit literal does not fit dtype width"))
+        return Ok(Scalar { bits: raw, dtype })
+    if dtype == .Int8:
+        return Ok(scalar_i8(parse_i64_ascii(token)? as i8))
+    if dtype == .Int16:
+        return Ok(scalar_i16(parse_i64_ascii(token)? as i16))
+    if dtype == .Int32:
+        return Ok(scalar_i32(parse_i32_ascii(token)?))
+    if dtype == .Int64:
+        return Ok(scalar_i64(parse_i64_ascii(token)?))
+    if dtype == .UInt8:
+        return Ok(scalar_u8(parse_u64_ascii(token)? as u8))
+    if dtype == .UInt16:
+        return Ok(scalar_u16(parse_u64_ascii(token)? as u16))
+    if dtype == .UInt32:
+        return Ok(scalar_u32(parse_u64_ascii(token)? as u32))
+    if dtype == .UInt64:
+        return Ok(scalar_u64(parse_u64_ascii(token)?))
+    if dtype == .Float16:
+        return Ok(scalar_f16_bits(f32_to_f16_bits(parse_f64_ascii(token)? as f32)))
+    if dtype == .Float32:
+        return Ok(scalar_f32(parse_f64_ascii(token)? as f32))
+    if dtype == .Float64:
+        return Ok(scalar_f64(parse_f64_ascii(token)?))
+    if dtype == .BFloat16:
+        return Ok(scalar_bf16_bits(f32_to_bf16_bits(parse_f64_ascii(token)? as f32)))
+    Err(.ParseError("unsupported scalar literal dtype"))
 
 fn parse_value_ref(token: str) -> Result[i32, IRTextError]:
     if not starts_with(token, "%"):
@@ -430,65 +711,53 @@ fn parse_value_ref(token: str) -> Result[i32, IRTextError]:
 
 fn parse_index_ref(token: str) -> Result[i32, IRTextError]:
     if starts_with(token, "@"):
-        let slot = parse_i32_ascii(token.slice(1, token.len() as i32))?
-        return Ok(ir_loop_ref(slot))
+        let loop_index = parse_i32_ascii(token.slice(1, token.len() as i32))?
+        return Ok(ir_loop_ref(loop_index))
     parse_value_ref(token)
 
-fn parse_const_literal(token: str) -> Result[i32, IRTextError]:
-    if token == "":
-        return Err(.ParseError("missing const literal"))
-    if contains_char(token, "."):
-        return Ok(0)
-    parse_i32_ascii(token)
+fn append_index_refs(aux: Vec[i32], inner: str) -> Result[Vec[i32], IRTextError]:
+    let trimmed = trim_ascii(inner)
+    if trimmed == "":
+        return Ok(aux)
+    var out = aux
+    var start: i32 = 0
+    let limit = trimmed.len() as i32
+    while start < limit:
+        var stop = start
+        while stop < limit and trimmed.slice(stop, stop + 1) != ",":
+            stop = stop + 1
+        let token = trim_ascii(trimmed.slice(start, stop))
+        if token == "":
+            return Err(.ParseError("empty index token"))
+        out.push(parse_index_ref(token)?)
+        if stop >= limit:
+            break
+        start = stop + 1
+    Ok(out)
 
-fn parse_i32_ascii(token: str) -> Result[i32, IRTextError]:
-    if token == "":
-        return Err(.ParseError("expected integer"))
-    var sign: i32 = 1
-    var pos: i32 = 0
-    if token.slice(0, 1) == "-":
-        sign = -1
-        pos = 1
-    var value: i32 = 0
-    let limit = token.len() as i32
-    while pos < limit:
-        let ch = token.slice(pos, pos + 1)
-        let digit = digit_value(ch)
-        if digit < 0:
-            return Err(.ParseError("invalid integer"))
-        value = value * 10 + digit
-        pos = pos + 1
-    Ok(value * sign)
-
-fn digit_value(ch: str) -> i32:
-    if ch == "0": return 0
-    if ch == "1": return 1
-    if ch == "2": return 2
-    if ch == "3": return 3
-    if ch == "4": return 4
-    if ch == "5": return 5
-    if ch == "6": return 6
-    if ch == "7": return 7
-    if ch == "8": return 8
-    if ch == "9": return 9
-    -1
-
-fn contains_char(text: str, needle: str) -> bool:
-    var pos: i32 = 0
-    let limit = text.len() as i32
-    while pos < limit:
-        if text.slice(pos, pos + 1) == needle:
-            return true
-        pos = pos + 1
-    false
-
-fn starts_with(text: str, prefix: str) -> bool:
-    if prefix.len() > text.len():
-        return false
-    text.slice(0, prefix.len() as i32) == prefix
-
-fn is_ws(ch: str) -> bool:
-    ch == " " or ch == "\t" or ch == "\r"
+fn append_reduce_meta(aux: Vec[i32], inner: str) -> Result[Vec[i32], IRTextError]:
+    let trimmed = trim_ascii(inner)
+    var parts: Vec[str] = Vec.new()
+    var start: i32 = 0
+    let limit = trimmed.len() as i32
+    while start < limit:
+        var stop = start
+        while stop < limit and trimmed.slice(stop, stop + 1) != ",":
+            stop = stop + 1
+        let token = trim_ascii(trimmed.slice(start, stop))
+        if token == "":
+            return Err(.ParseError("empty reduce metadata token"))
+        parts.push(token)
+        if stop >= limit:
+            break
+        start = stop + 1
+    if parts.len() != 3:
+        return Err(.ParseError("reduce metadata must be [slot, block, %value]"))
+    var out = aux
+    out.push(parse_i32_ascii(parts[0])?)
+    out.push(parse_i32_ascii(parts[1])?)
+    out.push(parse_value_ref(parts[2])?)
+    Ok(out)
 
 fn param_symbols -> ParamSymbols:
     ParamSymbols {
@@ -504,15 +773,21 @@ fn param_symbols -> ParamSymbols:
     }
 
 fn param_symbols_add(params: ParamSymbols, name: str) -> Result[ParamSymbols, IRTextError]:
-    if params.count == 0: return Ok({ params with count: 1, name0: name })
-    if params.count == 1: return Ok({ params with count: 2, name1: name })
-    if params.count == 2: return Ok({ params with count: 3, name2: name })
-    if params.count == 3: return Ok({ params with count: 4, name3: name })
-    if params.count == 4: return Ok({ params with count: 5, name4: name })
-    if params.count == 5: return Ok({ params with count: 6, name5: name })
-    if params.count == 6: return Ok({ params with count: 7, name6: name })
-    if params.count == 7: return Ok({ params with count: 8, name7: name })
-    Err(.ParseError("text parser supports at most 8 params"))
+    if params.count >= 8:
+        return Err(.ParseError("text parser currently supports at most 8 params"))
+    if param_symbols_find(params, name) >= 0:
+        return Err(.ParseError("duplicate param name"))
+    var next = params
+    if params.count == 0: next.name0 = name
+    if params.count == 1: next.name1 = name
+    if params.count == 2: next.name2 = name
+    if params.count == 3: next.name3 = name
+    if params.count == 4: next.name4 = name
+    if params.count == 5: next.name5 = name
+    if params.count == 6: next.name6 = name
+    if params.count == 7: next.name7 = name
+    next.count = params.count + 1
+    Ok(next)
 
 fn param_symbols_find(params: ParamSymbols, name: str) -> i32:
     if params.count > 0 and params.name0 == name: return 0
@@ -525,48 +800,80 @@ fn param_symbols_find(params: ParamSymbols, name: str) -> i32:
     if params.count > 7 and params.name7 == name: return 7
     -1
 
-fn param_dtype_by_index(prog: IRProgram, index: i32) -> DType:
-    if index == 0: return dtype_at(prog.param_dtypes, 0)
-    if index == 1: return dtype_at(prog.param_dtypes, 1)
-    if index == 2: return dtype_at(prog.param_dtypes, 2)
-    if index == 3: return dtype_at(prog.param_dtypes, 3)
-    if index == 4: return dtype_at(prog.param_dtypes, 4)
-    if index == 5: return dtype_at(prog.param_dtypes, 5)
-    if index == 6: return dtype_at(prog.param_dtypes, 6)
-    if index == 7: return dtype_at(prog.param_dtypes, 7)
-    .Int32
+fn intern_string(source: ProgramSource, value: str) -> StringIntern:
+    for i in 0..source.strings.len():
+        if source.strings[i] == value:
+            return StringIntern { source, index: i as i32 }
+    var next = source
+    next.strings.push(value)
+    StringIntern {
+        source: next,
+        index: next.strings.len() as i32 - 1,
+    }
 
-fn dtype_at(items: Vec[DType], index: i32) -> DType:
-    if index < 0 or index >= items.len() as i32:
-        return .Int32
-    items[index as i64]
+fn param_dtype_by_index(source: ProgramSource, index: i32) -> Result[DType, IRTextError]:
+    var seen: i32 = 0
+    for ip in 0..source.ir.len():
+        let inst = source.ir[ip]
+        if inst.op == IROP_PARAM:
+            if seen == index:
+                return Ok(inst.dtype)
+            seen = seen + 1
+    Err(.ParseError("param dtype is unavailable"))
 
-fn value_dtype_by_ref(prog: IRProgram, ref: i32) -> Result[DType, IRTextError]:
-    if ref < 0 or ref >= prog.insts.len() as i32:
-        return Err(.ParseError("value ref out of range"))
-    Ok(prog.insts[ref].dtype)
+fn local_dtype_by_index(source: ProgramSource, index: i32) -> Result[DType, IRTextError]:
+    var seen: i32 = 0
+    for ip in 0..source.ir.len():
+        let inst = source.ir[ip]
+        if inst.op == IROP_LOCAL:
+            if seen == index:
+                return Ok(inst.dtype)
+            seen = seen + 1
+    Err(.ParseError("local dtype is unavailable"))
 
-fn push_inst(items: Vec[IRInst], inst: IRInst) -> Vec[IRInst]:
-    let out = items
-    out.push(inst)
-    out
+fn private_dtype_by_index(source: ProgramSource, index: i32) -> Result[DType, IRTextError]:
+    var seen: i32 = 0
+    for ip in 0..source.ir.len():
+        let inst = source.ir[ip]
+        if inst.op == IROP_PRIVATE:
+            if seen == index:
+                return Ok(inst.dtype)
+            seen = seen + 1
+    Err(.ParseError("private dtype is unavailable"))
 
-fn push_i32(items: Vec[i32], value: i32) -> Vec[i32]:
-    let out = items
-    out.push(value)
-    out
+fn resolve_named_ref(state: ParseState, name: str) -> Result[i32, IRTextError]:
+    let param_index = param_symbols_find(state.params, name)
+    if param_index >= 0:
+        return Ok(ir_param_ref(param_index))
+    let local_index = param_symbols_find(state.locals, name)
+    if local_index >= 0:
+        return Ok(ir_local_ref(local_index))
+    let private_index = param_symbols_find(state.privates, name)
+    if private_index >= 0:
+        return Ok(ir_private_ref(private_index))
+    Err(.ParseError("storage reference is unknown"))
 
-fn push_str(items: Vec[str], value: str) -> Vec[str]:
-    let out = items
-    out.push(value)
-    out
+fn storage_dtype_by_ref(source: ProgramSource, ref: i32) -> Result[DType, IRTextError]:
+    if ir_is_param_ref(ref):
+        return param_dtype_by_index(source, ir_param_index(ref))
+    if ir_is_local_ref(ref):
+        return local_dtype_by_index(source, ir_local_index(ref))
+    if ir_is_private_ref(ref):
+        return private_dtype_by_index(source, ir_private_index(ref))
+    Err(.ParseError("storage dtype is unavailable"))
 
-fn push_mode(items: Vec[ParamMode], value: ParamMode) -> Vec[ParamMode]:
-    let out = items
-    out.push(value)
-    out
+fn value_dtype_by_ref(source: ProgramSource, ref: i32) -> Result[DType, IRTextError]:
+    for ip in 0..source.ir.len():
+        let inst = source.ir[ip]
+        if ir_is_value_producer(inst.op) and inst.d0 == ref:
+            return Ok(inst.dtype)
+    Err(.ParseError("value dtype is unavailable"))
 
-fn push_dtype(items: Vec[DType], value: DType) -> Vec[DType]:
-    let out = items
-    out.push(value)
-    out
+fn starts_with(text: str, prefix: str) -> bool:
+    let prefix_len = prefix.len() as i32
+    if text.len() as i32 < prefix_len:
+        return false
+    text.slice(0, prefix_len) == prefix
+
+fn is_ws(ch: str) -> bool:
+    ch == " " or ch == "\t" or ch == "\n" or ch == "\r"

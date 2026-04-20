@@ -4,7 +4,6 @@ use crux.core
 use crux.device
 use crux.errors
 use crux.ir
-use crux.ir_text
 
 let CPU_PROGRAM_BYTES: i32 = 32
 
@@ -23,25 +22,17 @@ type CPUProgramRecord {
 
 var PROGRAMS: Vec[CPUProgramRecord] = Vec.new()
 
-pub type ProgramSource {
-    ir: IRProgram,
-    ir_text: str,
-    entry: str,
-    spec_constants: Vec[ConstantDesc],
-}
-
 pub fn program_source(entry: str) -> ProgramSource:
     ProgramSource {
-        ir: ir_program(),
-        ir_text: "",
+        ir: Vec.new(),
+        aux: Vec.new(),
+        strings: Vec.new(),
         entry,
-        spec_constants: Vec.new(),
     }
 
 fn empty_sig -> ProgramSig:
     ProgramSig {
         params: Vec.new(),
-        constants: Vec.new(),
     }
 
 fn find_program_slot(id: *mut Program) -> i32:
@@ -51,43 +42,80 @@ fn find_program_slot(id: *mut Program) -> i32:
             return i
     -1
 
-fn source_ir(source: ProgramSource) -> Result[IRProgram, SubstrateError]:
-    let direct = source.ir
-    if direct.insts.len() > 0 or direct.num_params > 0:
-        return Ok(direct)
-    if source.ir_text != "":
-        return match parse_ir_text(source.ir_text)
-            Ok(ir) => Ok(ir)
-            Err(.ParseError(msg)) => Err(.CompileError(msg))
-    Ok(direct)
+fn source_ir(source: ProgramSource) -> IRProgram:
+    IRProgram {
+        insts: source.ir,
+        aux: source.aux,
+    }
 
-fn build_sig(ir: IRProgram) -> Result[ProgramSig, SubstrateError]:
-    let count = ir.num_params
-    if ir.param_names.len() as i32 != count:
-        return Err(.CompileError("ir param_names length mismatch"))
-    if ir.param_modes.len() as i32 != count:
-        return Err(.CompileError("ir param_modes length mismatch"))
-    if ir.param_ranks.len() as i32 != count:
-        return Err(.CompileError("ir param_ranks length mismatch"))
-    if ir.param_dtypes.len() as i32 != count:
-        return Err(.CompileError("ir param_dtypes length mismatch"))
+fn string_at(strings: Vec[str], index: i32) -> Result[str, SubstrateError]:
+    if index < 0 or index >= strings.len() as i32:
+        return Err(.CompileError("string pool index out of range"))
+    Ok(strings[index])
+
+fn has_name(names: Vec[str], name: str) -> bool:
+    for i in 0..names.len():
+        if names[i] == name:
+            return true
+    false
+
+fn build_sig(source: ProgramSource) -> Result[ProgramSig, SubstrateError]:
     let params: Vec[ParamDesc] = Vec.new()
-    for i in 0..count:
-        params.push(ParamDesc {
-            name: ir.param_names[i],
-            mode: ir.param_modes[i],
-            rank: ir.param_ranks[i],
-            dtype: ir.param_dtypes[i],
-        })
-    Ok(ProgramSig {
-        params,
-        constants: Vec.new(),
-    })
+    let spec_names: Vec[str] = Vec.new()
+    var phase: i32 = 0
+    for ip in 0..source.ir.len():
+        let inst = source.ir[ip]
+        if inst.op == IROP_SPEC_CONSTANT:
+            if phase != 0:
+                return Err(.CompileError("spec constants must precede params and compute"))
+            let name = string_at(source.strings, inst.d0)?
+            if has_name(spec_names, name):
+                return Err(.CompileError("duplicate spec constant name"))
+            spec_names.push(name)
+            continue
+        if inst.op == IROP_PARAM:
+            if phase == 2:
+                return Err(.CompileError("param headers must precede compute"))
+            phase = 1
+            let name = string_at(source.strings, inst.d0)?
+            let mode = ir_param_mode_from_code(inst.d1)?
+            if inst.d2 < 0 or inst.d2 > MAX_RANK:
+                return Err(.CompileError("param rank is invalid"))
+            if has_name(spec_names, name):
+                return Err(.CompileError("param name collides with spec constant"))
+            var duplicate = false
+            for pi in 0..params.len():
+                if params[pi].name == name:
+                    duplicate = true
+                    break
+            if duplicate:
+                return Err(.CompileError("duplicate param name"))
+            params.push(ParamDesc {
+                name,
+                mode,
+                rank: inst.d2,
+                dtype: inst.dtype,
+            })
+            continue
+        phase = 2
+    Ok(ProgramSig { params })
 
-pub fn compile(device: *mut Device, source: ProgramSource) -> Result[*mut Program, SubstrateError]:
-    let actual_device = if device == null then default_device() else device
-    let ir = source_ir(source)?
-    let sig = build_sig(ir)?
+fn compatible_compile_info(live: DeviceInfo, requested: DeviceInfo) -> bool:
+    live.kind == requested.kind and live.subgroup_size == requested.subgroup_size and live.max_shared_memory == requested.max_shared_memory and live.max_workgroup_size == requested.max_workgroup_size
+
+fn resolve_compile_device(info: DeviceInfo) -> Result[*mut Device, SubstrateError]:
+    let dev = default_device()
+    if dev == null:
+        return Err(.CompileError("no device is available for compilation"))
+    let live = device_info(dev)
+    if not compatible_compile_info(live, info):
+        return Err(.CompileError("no compatible live device for DeviceInfo"))
+    Ok(dev)
+
+pub fn compile(device_info: DeviceInfo, source: ProgramSource) -> Result[*mut Program, SubstrateError]:
+    let actual_device = resolve_compile_device(device_info)?
+    let ir = source_ir(source)
+    let sig = build_sig(source)?
     let _ = validate_ir(ir, sig)?
     let raw_opt = malloc(CPU_PROGRAM_BYTES)
     if raw_opt == None:
@@ -118,6 +146,12 @@ pub fn program_ir(prog: *mut Program) -> Result[IRProgram, SubstrateError]:
     if slot < 0:
         return Err(.CompileError("unknown program handle"))
     Ok(PROGRAMS[slot].ir)
+
+pub fn program_device(prog: *mut Program) -> Result[*mut Device, SubstrateError]:
+    let slot = find_program_slot(prog)
+    if slot < 0:
+        return Err(.CompileError("unknown program handle"))
+    Ok(PROGRAMS[slot].device)
 
 pub fn program_destroy(prog: *mut Program):
     if prog == null:

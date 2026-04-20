@@ -64,6 +64,32 @@ fn test_view_offset_of_uses_byte_strides:
     let v = view_contiguous(null_memory(), shape3(2, 3, 4), .Float32)
     assert(view_offset_of(v, shape3(1, 2, 3)) == 92)
 
+fn test_view_byte_range_handles_negative_stride:
+    let base = view_contiguous(null_memory(), shape1(4usize), .Float32)
+    let flipped = View {
+        memory: base.memory,
+        offset: 12usize,
+        shape: base.shape,
+        strides: strides_set(base.strides, 0, -4isize),
+        dtype: base.dtype,
+    }
+    let span = view_byte_range(flipped)
+    assert(span.0 == 0usize)
+    assert(span.1 == 16usize)
+
+fn test_view_canonicalize_collapses_contiguous_dims:
+    let v = view_contiguous(null_memory(), shape2(2usize, 3usize), .Float32)
+    let canonical = view_canonicalize(v)
+    assert(canonical.shape.rank == 1)
+    assert(shape_get(canonical.shape, 0) == 6usize)
+    assert(strides_get(canonical.strides, 0) == 4isize)
+
+fn test_view_byte_range_is_empty_for_zero_extent:
+    let empty = view_contiguous(null_memory(), shape1(0usize), .Float32)
+    let span = view_byte_range(empty)
+    assert(span.0 == 0usize)
+    assert(span.1 == 0usize)
+
 fn main:
     test_view_contiguous_layout()
     test_view_constructor_validates_rank_mismatch()
@@ -73,3 +99,6 @@ fn main:
     test_view_broadcast_sets_zero_stride()
     test_view_broadcast_rejects_incompatible_dims()
     test_view_offset_of_uses_byte_strides()
+    test_view_byte_range_handles_negative_stride()
+    test_view_canonicalize_collapses_contiguous_dims()
+    test_view_byte_range_is_empty_for_zero_extent()
