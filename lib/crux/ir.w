@@ -207,7 +207,7 @@ pub fn ir_const_bf16_bits(dest: i32, bits: u16) -> IRInst:
     ir_const_scalar(dest, scalar_bf16_bits(bits))
 
 pub fn ir_param_mode_code(mode: ParamMode) -> i32:
-    match mode
+    match mode:
         .In => 0
         .Out => 1
         .InOut => 2

@@ -25,7 +25,7 @@ fn write_i32(mem: *mut Memory, index: i32, value: i32):
 
 fn read_i32(mem: *mut Memory, index: i32) -> i32:
     let ptr = memory_ptr(mem) as *mut i32
-    unsafe: *(ptr + index as i64)
+    unsafe *(ptr + index as i64)
 
 fn write_i8(mem: *mut Memory, index: i32, value: i8):
     let ptr = memory_ptr(mem) as *mut i8
@@ -34,7 +34,7 @@ fn write_i8(mem: *mut Memory, index: i32, value: i8):
 
 fn read_i8(mem: *mut Memory, index: i32) -> i8:
     let ptr = memory_ptr(mem) as *mut i8
-    unsafe: *(ptr + index as i64)
+    unsafe *(ptr + index as i64)
 
 fn write_i16(mem: *mut Memory, index: i32, value: i16):
     let ptr = memory_ptr(mem) as *mut i16
@@ -43,7 +43,7 @@ fn write_i16(mem: *mut Memory, index: i32, value: i16):
 
 fn read_i16(mem: *mut Memory, index: i32) -> i16:
     let ptr = memory_ptr(mem) as *mut i16
-    unsafe: *(ptr + index as i64)
+    unsafe *(ptr + index as i64)
 
 fn write_i64(mem: *mut Memory, index: i32, value: i64):
     let ptr = memory_ptr(mem) as *mut i64
@@ -52,7 +52,7 @@ fn write_i64(mem: *mut Memory, index: i32, value: i64):
 
 fn read_i64(mem: *mut Memory, index: i32) -> i64:
     let ptr = memory_ptr(mem) as *mut i64
-    unsafe: *(ptr + index as i64)
+    unsafe *(ptr + index as i64)
 
 fn write_u8(mem: *mut Memory, index: i32, value: u8):
     let ptr = memory_ptr(mem) as *mut u8
@@ -61,7 +61,7 @@ fn write_u8(mem: *mut Memory, index: i32, value: u8):
 
 fn read_u8(mem: *mut Memory, index: i32) -> u8:
     let ptr = memory_ptr(mem) as *mut u8
-    unsafe: *(ptr + index as i64)
+    unsafe *(ptr + index as i64)
 
 fn write_u16(mem: *mut Memory, index: i32, value: u16):
     let ptr = memory_ptr(mem) as *mut u16
@@ -70,7 +70,7 @@ fn write_u16(mem: *mut Memory, index: i32, value: u16):
 
 fn read_u16(mem: *mut Memory, index: i32) -> u16:
     let ptr = memory_ptr(mem) as *mut u16
-    unsafe: *(ptr + index as i64)
+    unsafe *(ptr + index as i64)
 
 fn write_u32(mem: *mut Memory, index: i32, value: u32):
     let ptr = memory_ptr(mem) as *mut u32
@@ -79,7 +79,7 @@ fn write_u32(mem: *mut Memory, index: i32, value: u32):
 
 fn read_u32(mem: *mut Memory, index: i32) -> u32:
     let ptr = memory_ptr(mem) as *mut u32
-    unsafe: *(ptr + index as i64)
+    unsafe *(ptr + index as i64)
 
 fn write_u64(mem: *mut Memory, index: i32, value: u64):
     let ptr = memory_ptr(mem) as *mut u64
@@ -88,7 +88,7 @@ fn write_u64(mem: *mut Memory, index: i32, value: u64):
 
 fn read_u64(mem: *mut Memory, index: i32) -> u64:
     let ptr = memory_ptr(mem) as *mut u64
-    unsafe: *(ptr + index as i64)
+    unsafe *(ptr + index as i64)
 
 fn write_f32(mem: *mut Memory, index: i32, value: f32):
     let ptr = memory_ptr(mem) as *mut f32
@@ -97,12 +97,12 @@ fn write_f32(mem: *mut Memory, index: i32, value: f32):
 
 fn read_f32_bits(mem: *mut Memory, index: i32) -> u32:
     let ptr = memory_ptr(mem) as *mut f32
-    let value = unsafe: *(ptr + index as i64)
-    unsafe: transmute[u32](value)
+    let value = unsafe *(ptr + index as i64)
+    unsafe { transmute[u32](value) }
 
 fn read_f32(mem: *mut Memory, index: i32) -> f32:
     let ptr = memory_ptr(mem) as *mut f32
-    unsafe: *(ptr + index as i64)
+    unsafe *(ptr + index as i64)
 
 fn write_f64(mem: *mut Memory, index: i32, value: f64):
     let ptr = memory_ptr(mem) as *mut f64
@@ -111,11 +111,11 @@ fn write_f64(mem: *mut Memory, index: i32, value: f64):
 
 fn read_f64_bits(mem: *mut Memory, index: i32) -> u64:
     let ptr = memory_ptr(mem) as *mut f64
-    let value = unsafe: *(ptr + index as i64)
-    unsafe: transmute[u64](value)
+    let value = unsafe *(ptr + index as i64)
+    unsafe { transmute[u64](value) }
 
 fn alloc_memory(bytes: usize) -> *mut Memory:
-    match alloc(default_device(), bytes)
+    match alloc(default_device(), bytes):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -130,14 +130,14 @@ fn assert_close_f32(actual: f32, expected: f32, tolerance: f32):
     assert(abs_f32(actual - expected) <= tolerance)
 
 fn compile_program(source: ProgramSource) -> *mut Program:
-    match compile(device_info(default_device()), source)
+    match compile(device_info(default_device()), source):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_program()
 
 fn dispatch_entries(stream: *mut Stream, prog: *mut Program, entries: Vec[BindEntry]) -> *mut Event:
-    match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -217,24 +217,24 @@ fn build_parallel_add_source(n: i32) -> ProgramSource:
     }
 
 fn compile_text_source(text: str) -> ProgramSource:
-    match parse_ir_text(text)
+    match parse_ir_text(text):
         Ok(v) => v
         Err(_) =>
             assert(false)
             program_source("main")
 
 fn test_compile_ir_text_scalar_add:
-    let a_mem = match alloc(default_device(), 4usize)
+    let a_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let b_mem = match alloc(default_device(), 4usize)
+    let b_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -246,7 +246,7 @@ fn test_compile_ir_text_scalar_add:
 
     let src = compile_text_source("param a in [] i32\nparam b in [] i32\nparam out out [] i32\n%0 = load a []\n%1 = load b []\n%2 = add %0 %1\nstore out [] %2\nreturn\n")
 
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -257,14 +257,14 @@ fn test_compile_ir_text_scalar_add:
     entries.push(bind("b", view_contiguous(b_mem, shape_scalar(), .Int32)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Int32)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_event()
 
     assert(event_is_done(event))
-    assert(unsafe: *(memory_ptr(out_mem) as *mut i32) == 9)
+    assert(unsafe *(memory_ptr(out_mem) as *mut i32) == 9)
 
     event_destroy(event)
     stream_destroy(stream)
@@ -277,17 +277,17 @@ fn test_dispatch_parallel_add_i32:
     let count: i32 = 4
     let n = count as Size
     let bytes = n * 4usize
-    let a_mem = match alloc(default_device(), bytes)
+    let a_mem = match alloc(default_device(), bytes):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let b_mem = match alloc(default_device(), bytes)
+    let b_mem = match alloc(default_device(), bytes):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), bytes)
+    let out_mem = match alloc(default_device(), bytes):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -296,7 +296,7 @@ fn test_dispatch_parallel_add_i32:
     fill_i32(a_mem, count, 1)
     fill_i32(b_mem, count, 10)
 
-    let prog = match compile(device_info(default_device()), build_parallel_add_source(count))
+    let prog = match compile(device_info(default_device()), build_parallel_add_source(count)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -314,7 +314,7 @@ fn test_dispatch_parallel_add_i32:
     entries.push(bind("out", view_contiguous(out_mem, shape1(n), .Int32)))
 
     let stream = stream_create(default_device())
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -337,17 +337,17 @@ fn test_dispatch_parallel_add_from_text_ir:
     let count: i32 = 4
     let n = count as Size
     let bytes = n * 4usize
-    let a_mem = match alloc(default_device(), bytes)
+    let a_mem = match alloc(default_device(), bytes):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let b_mem = match alloc(default_device(), bytes)
+    let b_mem = match alloc(default_device(), bytes):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), bytes)
+    let out_mem = match alloc(default_device(), bytes):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -358,7 +358,7 @@ fn test_dispatch_parallel_add_from_text_ir:
 
     let src = compile_text_source("param a in [N] i32\nparam b in [N] i32\nparam out out [N] i32\n%0 = const i32 0\n%1 = const i32 4\nparallel 0 %0 %1 1\nblock_begin 1\n%2 = load a [@0]\n%3 = load b [@0]\n%4 = add %2 %3\nstore out [@0] %4\nblock_end 1\nreturn\n")
 
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -370,7 +370,7 @@ fn test_dispatch_parallel_add_from_text_ir:
     entries.push(bind("out", view_contiguous(out_mem, shape1(n), .Int32)))
 
     let stream = stream_create(default_device())
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -390,12 +390,12 @@ fn test_dispatch_parallel_add_from_text_ir:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_clamp:
-    let a_mem = match alloc(default_device(), 4usize)
+    let a_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -406,7 +406,7 @@ fn test_compile_ir_text_scalar_clamp:
 
     let src = compile_text_source("param a in [] i32\nparam out out [] i32\n%0 = const i32 0\n%1 = const i32 7\n%2 = load a []\n%3 = clamp %2 %0 %1\nstore out [] %3\nreturn\n")
 
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -416,14 +416,14 @@ fn test_compile_ir_text_scalar_clamp:
     entries.push(bind("a", view_contiguous(a_mem, shape_scalar(), .Int32)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Int32)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_event()
 
     assert(event_is_done(event))
-    assert(unsafe: *(memory_ptr(out_mem) as *mut i32) == 7)
+    assert(unsafe *(memory_ptr(out_mem) as *mut i32) == 7)
 
     event_destroy(event)
     stream_destroy(stream)
@@ -432,17 +432,17 @@ fn test_compile_ir_text_scalar_clamp:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_add_with_spec_header:
-    let a_mem = match alloc(default_device(), 4usize)
+    let a_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let b_mem = match alloc(default_device(), 4usize)
+    let b_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -454,7 +454,7 @@ fn test_compile_ir_text_scalar_add_with_spec_header:
 
     let src = compile_text_source("spec_constant TILE i32 16\nparam a in [] i32\nparam b in [] i32\nparam out out [] i32\n%0 = load a []\n%1 = load b []\n%2 = add %0 %1\nstore out [] %2\nreturn\n")
 
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -470,14 +470,14 @@ fn test_compile_ir_text_scalar_add_with_spec_header:
     entries.push(bind("b", view_contiguous(b_mem, shape_scalar(), .Int32)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Int32)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_event()
 
     assert(event_is_done(event))
-    assert(unsafe: *(memory_ptr(out_mem) as *mut i32) == 9)
+    assert(unsafe *(memory_ptr(out_mem) as *mut i32) == 9)
 
     event_destroy(event)
     stream_destroy(stream)
@@ -487,17 +487,17 @@ fn test_compile_ir_text_scalar_add_with_spec_header:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_bitwise_i32:
-    let a_mem = match alloc(default_device(), 4usize)
+    let a_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let b_mem = match alloc(default_device(), 4usize)
+    let b_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -509,7 +509,7 @@ fn test_compile_ir_text_scalar_bitwise_i32:
 
     let src = compile_text_source("param a in [] i32\nparam b in [] i32\nparam out out [] i32\n%0 = load a []\n%1 = load b []\n%2 = xor %0 %1\nstore out [] %2\nreturn\n")
 
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -520,14 +520,14 @@ fn test_compile_ir_text_scalar_bitwise_i32:
     entries.push(bind("b", view_contiguous(b_mem, shape_scalar(), .Int32)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Int32)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_event()
 
     assert(event_is_done(event))
-    assert(unsafe: *(memory_ptr(out_mem) as *mut i32) == 12)
+    assert(unsafe *(memory_ptr(out_mem) as *mut i32) == 12)
 
     event_destroy(event)
     stream_destroy(stream)
@@ -537,12 +537,12 @@ fn test_compile_ir_text_scalar_bitwise_i32:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_not_i32:
-    let a_mem = match alloc(default_device(), 4usize)
+    let a_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -553,7 +553,7 @@ fn test_compile_ir_text_scalar_not_i32:
 
     let src = compile_text_source("param a in [] i32\nparam out out [] i32\n%0 = load a []\n%1 = not %0\nstore out [] %1\nreturn\n")
 
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -563,14 +563,14 @@ fn test_compile_ir_text_scalar_not_i32:
     entries.push(bind("a", view_contiguous(a_mem, shape_scalar(), .Int32)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Int32)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_event()
 
     assert(event_is_done(event))
-    assert(unsafe: *(memory_ptr(out_mem) as *mut i32) == ~5)
+    assert(unsafe *(memory_ptr(out_mem) as *mut i32) == ~5)
 
     event_destroy(event)
     stream_destroy(stream)
@@ -579,17 +579,17 @@ fn test_compile_ir_text_scalar_not_i32:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_shift_i32:
-    let a_mem = match alloc(default_device(), 4usize)
+    let a_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let b_mem = match alloc(default_device(), 4usize)
+    let b_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -601,7 +601,7 @@ fn test_compile_ir_text_scalar_shift_i32:
 
     let src = compile_text_source("param a in [] i32\nparam b in [] i32\nparam out out [] i32\n%0 = load a []\n%1 = load b []\n%2 = shl %0 %1\n%3 = shr %2 %1\nstore out [] %3\nreturn\n")
 
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -612,14 +612,14 @@ fn test_compile_ir_text_scalar_shift_i32:
     entries.push(bind("b", view_contiguous(b_mem, shape_scalar(), .Int32)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Int32)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_event()
 
     assert(event_is_done(event))
-    assert(unsafe: *(memory_ptr(out_mem) as *mut i32) == 3)
+    assert(unsafe *(memory_ptr(out_mem) as *mut i32) == 3)
 
     event_destroy(event)
     stream_destroy(stream)
@@ -629,12 +629,12 @@ fn test_compile_ir_text_scalar_shift_i32:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_bitcount_i32:
-    let a_mem = match alloc(default_device(), 4usize)
+    let a_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -645,7 +645,7 @@ fn test_compile_ir_text_scalar_bitcount_i32:
 
     let src = compile_text_source("param a in [] i32\nparam out out [] i32\n%0 = load a []\n%1 = popcount %0\n%2 = clz %0\n%3 = ctz %0\n%4 = add %1 %2\n%5 = add %4 %3\nstore out [] %5\nreturn\n")
 
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -655,14 +655,14 @@ fn test_compile_ir_text_scalar_bitcount_i32:
     entries.push(bind("a", view_contiguous(a_mem, shape_scalar(), .Int32)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Int32)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_event()
 
     assert(event_is_done(event))
-    assert(unsafe: *(memory_ptr(out_mem) as *mut i32) == 31)
+    assert(unsafe *(memory_ptr(out_mem) as *mut i32) == 31)
 
     event_destroy(event)
     stream_destroy(stream)
@@ -671,17 +671,17 @@ fn test_compile_ir_text_scalar_bitcount_i32:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_sat_i32:
-    let a_mem = match alloc(default_device(), 4usize)
+    let a_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let b_mem = match alloc(default_device(), 4usize)
+    let b_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -692,7 +692,7 @@ fn test_compile_ir_text_scalar_sat_i32:
         *(memory_ptr(b_mem) as *mut i32) = 1
 
     let add_src = compile_text_source("param a in [] i32\nparam b in [] i32\nparam out out [] i32\n%0 = load a []\n%1 = load b []\n%2 = add_sat %0 %1\nstore out [] %2\nreturn\n")
-    let add_prog = match compile(device_info(default_device()), add_src)
+    let add_prog = match compile(device_info(default_device()), add_src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -702,13 +702,13 @@ fn test_compile_ir_text_scalar_sat_i32:
     add_entries.push(bind("a", view_contiguous(a_mem, shape_scalar(), .Int32)))
     add_entries.push(bind("b", view_contiguous(b_mem, shape_scalar(), .Int32)))
     add_entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Int32)))
-    let add_event = match dispatch(stream, add_prog, unit_grid(), bindings_from(add_entries))
+    let add_event = match dispatch(stream, add_prog, unit_grid(), bindings_from(add_entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_event()
     assert(event_is_done(add_event))
-    assert(unsafe: *(memory_ptr(out_mem) as *mut i32) == 2147483647)
+    assert(unsafe *(memory_ptr(out_mem) as *mut i32) == 2147483647)
     event_destroy(add_event)
     program_destroy(add_prog)
 
@@ -717,7 +717,7 @@ fn test_compile_ir_text_scalar_sat_i32:
         *(memory_ptr(b_mem) as *mut i32) = 1
 
     let sub_src = compile_text_source("param a in [] i32\nparam b in [] i32\nparam out out [] i32\n%0 = load a []\n%1 = load b []\n%2 = sub_sat %0 %1\nstore out [] %2\nreturn\n")
-    let sub_prog = match compile(device_info(default_device()), sub_src)
+    let sub_prog = match compile(device_info(default_device()), sub_src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -726,13 +726,13 @@ fn test_compile_ir_text_scalar_sat_i32:
     sub_entries.push(bind("a", view_contiguous(a_mem, shape_scalar(), .Int32)))
     sub_entries.push(bind("b", view_contiguous(b_mem, shape_scalar(), .Int32)))
     sub_entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Int32)))
-    let sub_event = match dispatch(stream, sub_prog, unit_grid(), bindings_from(sub_entries))
+    let sub_event = match dispatch(stream, sub_prog, unit_grid(), bindings_from(sub_entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_event()
     assert(event_is_done(sub_event))
-    assert(unsafe: *(memory_ptr(out_mem) as *mut i32) == -2147483648)
+    assert(unsafe *(memory_ptr(out_mem) as *mut i32) == -2147483648)
     event_destroy(sub_event)
     program_destroy(sub_prog)
 
@@ -742,12 +742,12 @@ fn test_compile_ir_text_scalar_sat_i32:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_exp_f32:
-    let a_mem = match alloc(default_device(), 4usize)
+    let a_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -757,7 +757,7 @@ fn test_compile_ir_text_scalar_exp_f32:
 
     let src = compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = exp %0\nstore out [] %1\nreturn\n")
 
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -767,7 +767,7 @@ fn test_compile_ir_text_scalar_exp_f32:
     entries.push(bind("a", view_contiguous(a_mem, shape_scalar(), .Float32)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float32)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -783,12 +783,12 @@ fn test_compile_ir_text_scalar_exp_f32:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_log_f32:
-    let a_mem = match alloc(default_device(), 4usize)
+    let a_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -798,7 +798,7 @@ fn test_compile_ir_text_scalar_log_f32:
 
     let src = compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = log %0\nstore out [] %1\nreturn\n")
 
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -808,7 +808,7 @@ fn test_compile_ir_text_scalar_log_f32:
     entries.push(bind("a", view_contiguous(a_mem, shape_scalar(), .Float32)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float32)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -824,12 +824,12 @@ fn test_compile_ir_text_scalar_log_f32:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_log2_f32:
-    let a_mem = match alloc(default_device(), 4usize)
+    let a_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -839,7 +839,7 @@ fn test_compile_ir_text_scalar_log2_f32:
 
     let src = compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = log2 %0\nstore out [] %1\nreturn\n")
 
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -849,7 +849,7 @@ fn test_compile_ir_text_scalar_log2_f32:
     entries.push(bind("a", view_contiguous(a_mem, shape_scalar(), .Float32)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float32)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -865,12 +865,12 @@ fn test_compile_ir_text_scalar_log2_f32:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_sin_f32:
-    let a_mem = match alloc(default_device(), 4usize)
+    let a_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -880,7 +880,7 @@ fn test_compile_ir_text_scalar_sin_f32:
 
     let src = compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = sin %0\nstore out [] %1\nreturn\n")
 
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -890,7 +890,7 @@ fn test_compile_ir_text_scalar_sin_f32:
     entries.push(bind("a", view_contiguous(a_mem, shape_scalar(), .Float32)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float32)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -906,12 +906,12 @@ fn test_compile_ir_text_scalar_sin_f32:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_cos_f32:
-    let a_mem = match alloc(default_device(), 4usize)
+    let a_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -921,7 +921,7 @@ fn test_compile_ir_text_scalar_cos_f32:
 
     let src = compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = cos %0\nstore out [] %1\nreturn\n")
 
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -931,7 +931,7 @@ fn test_compile_ir_text_scalar_cos_f32:
     entries.push(bind("a", view_contiguous(a_mem, shape_scalar(), .Float32)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float32)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -947,12 +947,12 @@ fn test_compile_ir_text_scalar_cos_f32:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_tanh_f32:
-    let a_mem = match alloc(default_device(), 4usize)
+    let a_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -962,7 +962,7 @@ fn test_compile_ir_text_scalar_tanh_f32:
 
     let src = compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = tanh %0\nstore out [] %1\nreturn\n")
 
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -972,7 +972,7 @@ fn test_compile_ir_text_scalar_tanh_f32:
     entries.push(bind("a", view_contiguous(a_mem, shape_scalar(), .Float32)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float32)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -988,12 +988,12 @@ fn test_compile_ir_text_scalar_tanh_f32:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_float_math_nontrivial_f32:
-    let input_mem = match alloc(default_device(), 4usize)
+    let input_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1001,7 +1001,7 @@ fn test_compile_ir_text_scalar_float_math_nontrivial_f32:
     let stream = stream_create(default_device())
 
     write_f32(input_mem, 0, 1.0)
-    let exp_prog = match compile(device_info(default_device()), compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = exp %0\nstore out [] %1\nreturn\n"))
+    let exp_prog = match compile(device_info(default_device()), compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = exp %0\nstore out [] %1\nreturn\n")):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1009,7 +1009,7 @@ fn test_compile_ir_text_scalar_float_math_nontrivial_f32:
     let exp_entries: Vec[BindEntry] = Vec.new()
     exp_entries.push(bind("a", view_contiguous(input_mem, shape_scalar(), .Float32)))
     exp_entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float32)))
-    let exp_event = match dispatch(stream, exp_prog, unit_grid(), bindings_from(exp_entries))
+    let exp_event = match dispatch(stream, exp_prog, unit_grid(), bindings_from(exp_entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1020,7 +1020,7 @@ fn test_compile_ir_text_scalar_float_math_nontrivial_f32:
     program_destroy(exp_prog)
 
     write_f32(input_mem, 0, 2.7182817)
-    let log_prog = match compile(device_info(default_device()), compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = log %0\nstore out [] %1\nreturn\n"))
+    let log_prog = match compile(device_info(default_device()), compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = log %0\nstore out [] %1\nreturn\n")):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1028,7 +1028,7 @@ fn test_compile_ir_text_scalar_float_math_nontrivial_f32:
     let log_entries: Vec[BindEntry] = Vec.new()
     log_entries.push(bind("a", view_contiguous(input_mem, shape_scalar(), .Float32)))
     log_entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float32)))
-    let log_event = match dispatch(stream, log_prog, unit_grid(), bindings_from(log_entries))
+    let log_event = match dispatch(stream, log_prog, unit_grid(), bindings_from(log_entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1039,7 +1039,7 @@ fn test_compile_ir_text_scalar_float_math_nontrivial_f32:
     program_destroy(log_prog)
 
     write_f32(input_mem, 0, 3.0)
-    let log2_prog = match compile(device_info(default_device()), compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = log2 %0\nstore out [] %1\nreturn\n"))
+    let log2_prog = match compile(device_info(default_device()), compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = log2 %0\nstore out [] %1\nreturn\n")):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1047,7 +1047,7 @@ fn test_compile_ir_text_scalar_float_math_nontrivial_f32:
     let log2_entries: Vec[BindEntry] = Vec.new()
     log2_entries.push(bind("a", view_contiguous(input_mem, shape_scalar(), .Float32)))
     log2_entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float32)))
-    let log2_event = match dispatch(stream, log2_prog, unit_grid(), bindings_from(log2_entries))
+    let log2_event = match dispatch(stream, log2_prog, unit_grid(), bindings_from(log2_entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1058,7 +1058,7 @@ fn test_compile_ir_text_scalar_float_math_nontrivial_f32:
     program_destroy(log2_prog)
 
     write_f32(input_mem, 0, 0.5)
-    let sin_prog = match compile(device_info(default_device()), compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = sin %0\nstore out [] %1\nreturn\n"))
+    let sin_prog = match compile(device_info(default_device()), compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = sin %0\nstore out [] %1\nreturn\n")):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1066,7 +1066,7 @@ fn test_compile_ir_text_scalar_float_math_nontrivial_f32:
     let sin_entries: Vec[BindEntry] = Vec.new()
     sin_entries.push(bind("a", view_contiguous(input_mem, shape_scalar(), .Float32)))
     sin_entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float32)))
-    let sin_event = match dispatch(stream, sin_prog, unit_grid(), bindings_from(sin_entries))
+    let sin_event = match dispatch(stream, sin_prog, unit_grid(), bindings_from(sin_entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1076,7 +1076,7 @@ fn test_compile_ir_text_scalar_float_math_nontrivial_f32:
     event_destroy(sin_event)
     program_destroy(sin_prog)
 
-    let cos_prog = match compile(device_info(default_device()), compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = cos %0\nstore out [] %1\nreturn\n"))
+    let cos_prog = match compile(device_info(default_device()), compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = cos %0\nstore out [] %1\nreturn\n")):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1084,7 +1084,7 @@ fn test_compile_ir_text_scalar_float_math_nontrivial_f32:
     let cos_entries: Vec[BindEntry] = Vec.new()
     cos_entries.push(bind("a", view_contiguous(input_mem, shape_scalar(), .Float32)))
     cos_entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float32)))
-    let cos_event = match dispatch(stream, cos_prog, unit_grid(), bindings_from(cos_entries))
+    let cos_event = match dispatch(stream, cos_prog, unit_grid(), bindings_from(cos_entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1095,7 +1095,7 @@ fn test_compile_ir_text_scalar_float_math_nontrivial_f32:
     program_destroy(cos_prog)
 
     write_f32(input_mem, 0, 1.0)
-    let tanh_prog = match compile(device_info(default_device()), compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = tanh %0\nstore out [] %1\nreturn\n"))
+    let tanh_prog = match compile(device_info(default_device()), compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = tanh %0\nstore out [] %1\nreturn\n")):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1103,7 +1103,7 @@ fn test_compile_ir_text_scalar_float_math_nontrivial_f32:
     let tanh_entries: Vec[BindEntry] = Vec.new()
     tanh_entries.push(bind("a", view_contiguous(input_mem, shape_scalar(), .Float32)))
     tanh_entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float32)))
-    let tanh_event = match dispatch(stream, tanh_prog, unit_grid(), bindings_from(tanh_entries))
+    let tanh_event = match dispatch(stream, tanh_prog, unit_grid(), bindings_from(tanh_entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1114,7 +1114,7 @@ fn test_compile_ir_text_scalar_float_math_nontrivial_f32:
     program_destroy(tanh_prog)
 
     write_f32(input_mem, 0, 2.0)
-    let sqrt_prog = match compile(device_info(default_device()), compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = sqrt %0\nstore out [] %1\nreturn\n"))
+    let sqrt_prog = match compile(device_info(default_device()), compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = sqrt %0\nstore out [] %1\nreturn\n")):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1122,7 +1122,7 @@ fn test_compile_ir_text_scalar_float_math_nontrivial_f32:
     let sqrt_entries: Vec[BindEntry] = Vec.new()
     sqrt_entries.push(bind("a", view_contiguous(input_mem, shape_scalar(), .Float32)))
     sqrt_entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float32)))
-    let sqrt_event = match dispatch(stream, sqrt_prog, unit_grid(), bindings_from(sqrt_entries))
+    let sqrt_event = match dispatch(stream, sqrt_prog, unit_grid(), bindings_from(sqrt_entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1132,7 +1132,7 @@ fn test_compile_ir_text_scalar_float_math_nontrivial_f32:
     event_destroy(sqrt_event)
     program_destroy(sqrt_prog)
 
-    let rsqrt_prog = match compile(device_info(default_device()), compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = rsqrt %0\nstore out [] %1\nreturn\n"))
+    let rsqrt_prog = match compile(device_info(default_device()), compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = rsqrt %0\nstore out [] %1\nreturn\n")):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1140,7 +1140,7 @@ fn test_compile_ir_text_scalar_float_math_nontrivial_f32:
     let rsqrt_entries: Vec[BindEntry] = Vec.new()
     rsqrt_entries.push(bind("a", view_contiguous(input_mem, shape_scalar(), .Float32)))
     rsqrt_entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float32)))
-    let rsqrt_event = match dispatch(stream, rsqrt_prog, unit_grid(), bindings_from(rsqrt_entries))
+    let rsqrt_event = match dispatch(stream, rsqrt_prog, unit_grid(), bindings_from(rsqrt_entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1155,12 +1155,12 @@ fn test_compile_ir_text_scalar_float_math_nontrivial_f32:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_float_math_domain_errors:
-    let input_mem = match alloc(default_device(), 4usize)
+    let input_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1168,7 +1168,7 @@ fn test_compile_ir_text_scalar_float_math_domain_errors:
     let stream = stream_create(default_device())
 
     write_f32(input_mem, 0, 0.0)
-    let log_prog = match compile(device_info(default_device()), compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = log %0\nstore out [] %1\nreturn\n"))
+    let log_prog = match compile(device_info(default_device()), compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = log %0\nstore out [] %1\nreturn\n")):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1176,14 +1176,14 @@ fn test_compile_ir_text_scalar_float_math_domain_errors:
     let log_entries: Vec[BindEntry] = Vec.new()
     log_entries.push(bind("a", view_contiguous(input_mem, shape_scalar(), .Float32)))
     log_entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float32)))
-    let got_log_error = match dispatch(stream, log_prog, unit_grid(), bindings_from(log_entries))
+    let got_log_error = match dispatch(stream, log_prog, unit_grid(), bindings_from(log_entries)):
         Err(.Unsupported(_)) => true
         _ => false
     assert(got_log_error)
     program_destroy(log_prog)
 
     write_f32(input_mem, 0, -1.0)
-    let sqrt_prog = match compile(device_info(default_device()), compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = sqrt %0\nstore out [] %1\nreturn\n"))
+    let sqrt_prog = match compile(device_info(default_device()), compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = sqrt %0\nstore out [] %1\nreturn\n")):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1191,14 +1191,14 @@ fn test_compile_ir_text_scalar_float_math_domain_errors:
     let sqrt_entries: Vec[BindEntry] = Vec.new()
     sqrt_entries.push(bind("a", view_contiguous(input_mem, shape_scalar(), .Float32)))
     sqrt_entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float32)))
-    let got_sqrt_error = match dispatch(stream, sqrt_prog, unit_grid(), bindings_from(sqrt_entries))
+    let got_sqrt_error = match dispatch(stream, sqrt_prog, unit_grid(), bindings_from(sqrt_entries)):
         Err(.Unsupported(_)) => true
         _ => false
     assert(got_sqrt_error)
     program_destroy(sqrt_prog)
 
     write_f32(input_mem, 0, 0.0)
-    let rsqrt_prog = match compile(device_info(default_device()), compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = rsqrt %0\nstore out [] %1\nreturn\n"))
+    let rsqrt_prog = match compile(device_info(default_device()), compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = rsqrt %0\nstore out [] %1\nreturn\n")):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1206,7 +1206,7 @@ fn test_compile_ir_text_scalar_float_math_domain_errors:
     let rsqrt_entries: Vec[BindEntry] = Vec.new()
     rsqrt_entries.push(bind("a", view_contiguous(input_mem, shape_scalar(), .Float32)))
     rsqrt_entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float32)))
-    let got_rsqrt_error = match dispatch(stream, rsqrt_prog, unit_grid(), bindings_from(rsqrt_entries))
+    let got_rsqrt_error = match dispatch(stream, rsqrt_prog, unit_grid(), bindings_from(rsqrt_entries)):
         Err(.Unsupported(_)) => true
         _ => false
     assert(got_rsqrt_error)
@@ -1217,17 +1217,17 @@ fn test_compile_ir_text_scalar_float_math_domain_errors:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_add_f32:
-    let a_mem = match alloc(default_device(), 4usize)
+    let a_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let b_mem = match alloc(default_device(), 4usize)
+    let b_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1238,7 +1238,7 @@ fn test_compile_ir_text_scalar_add_f32:
 
     let src = compile_text_source("param a in [] f32\nparam b in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = load b []\n%2 = add %0 %1\nstore out [] %2\nreturn\n")
 
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1249,7 +1249,7 @@ fn test_compile_ir_text_scalar_add_f32:
     entries.push(bind("b", view_contiguous(b_mem, shape_scalar(), .Float32)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float32)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1266,17 +1266,17 @@ fn test_compile_ir_text_scalar_add_f32:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_add_f64:
-    let a_mem = match alloc(default_device(), 8usize)
+    let a_mem = match alloc(default_device(), 8usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let b_mem = match alloc(default_device(), 8usize)
+    let b_mem = match alloc(default_device(), 8usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 8usize)
+    let out_mem = match alloc(default_device(), 8usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1287,7 +1287,7 @@ fn test_compile_ir_text_scalar_add_f64:
 
     let src = compile_text_source("param a in [] f64\nparam b in [] f64\nparam out out [] f64\n%0 = load a []\n%1 = load b []\n%2 = add %0 %1\nstore out [] %2\nreturn\n")
 
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1298,7 +1298,7 @@ fn test_compile_ir_text_scalar_add_f64:
     entries.push(bind("b", view_contiguous(b_mem, shape_scalar(), .Float64)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float64)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1315,12 +1315,12 @@ fn test_compile_ir_text_scalar_add_f64:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_cast_i32_to_f32:
-    let a_mem = match alloc(default_device(), 4usize)
+    let a_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1331,7 +1331,7 @@ fn test_compile_ir_text_scalar_cast_i32_to_f32:
 
     let src = compile_text_source("param a in [] i32\nparam out out [] f32\n%0 = load a []\n%1 = cast f32 %0\nstore out [] %1\nreturn\n")
 
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1341,7 +1341,7 @@ fn test_compile_ir_text_scalar_cast_i32_to_f32:
     entries.push(bind("a", view_contiguous(a_mem, shape_scalar(), .Int32)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float32)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1357,12 +1357,12 @@ fn test_compile_ir_text_scalar_cast_i32_to_f32:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_abs_i32:
-    let a_mem = match alloc(default_device(), 4usize)
+    let a_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1373,7 +1373,7 @@ fn test_compile_ir_text_scalar_abs_i32:
 
     let src = compile_text_source("param a in [] i32\nparam out out [] i32\n%0 = load a []\n%1 = abs %0\nstore out [] %1\nreturn\n")
 
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1383,14 +1383,14 @@ fn test_compile_ir_text_scalar_abs_i32:
     entries.push(bind("a", view_contiguous(a_mem, shape_scalar(), .Int32)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Int32)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_event()
 
     assert(event_is_done(event))
-    assert(unsafe: *(memory_ptr(out_mem) as *mut i32) == 9)
+    assert(unsafe *(memory_ptr(out_mem) as *mut i32) == 9)
 
     event_destroy(event)
     stream_destroy(stream)
@@ -1399,17 +1399,17 @@ fn test_compile_ir_text_scalar_abs_i32:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_mod_i32:
-    let a_mem = match alloc(default_device(), 4usize)
+    let a_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let b_mem = match alloc(default_device(), 4usize)
+    let b_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1421,7 +1421,7 @@ fn test_compile_ir_text_scalar_mod_i32:
 
     let src = compile_text_source("param a in [] i32\nparam b in [] i32\nparam out out [] i32\n%0 = load a []\n%1 = load b []\n%2 = mod %0 %1\nstore out [] %2\nreturn\n")
 
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1432,14 +1432,14 @@ fn test_compile_ir_text_scalar_mod_i32:
     entries.push(bind("b", view_contiguous(b_mem, shape_scalar(), .Int32)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Int32)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_event()
 
     assert(event_is_done(event))
-    assert(unsafe: *(memory_ptr(out_mem) as *mut i32) == 2)
+    assert(unsafe *(memory_ptr(out_mem) as *mut i32) == 2)
 
     event_destroy(event)
     stream_destroy(stream)
@@ -1449,12 +1449,12 @@ fn test_compile_ir_text_scalar_mod_i32:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_floor_f32:
-    let a_mem = match alloc(default_device(), 4usize)
+    let a_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1464,7 +1464,7 @@ fn test_compile_ir_text_scalar_floor_f32:
 
     let src = compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = floor %0\nstore out [] %1\nreturn\n")
 
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1474,7 +1474,7 @@ fn test_compile_ir_text_scalar_floor_f32:
     entries.push(bind("a", view_contiguous(a_mem, shape_scalar(), .Float32)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float32)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1490,12 +1490,12 @@ fn test_compile_ir_text_scalar_floor_f32:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_ceil_f32:
-    let a_mem = match alloc(default_device(), 4usize)
+    let a_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1505,7 +1505,7 @@ fn test_compile_ir_text_scalar_ceil_f32:
 
     let src = compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = ceil %0\nstore out [] %1\nreturn\n")
 
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1515,7 +1515,7 @@ fn test_compile_ir_text_scalar_ceil_f32:
     entries.push(bind("a", view_contiguous(a_mem, shape_scalar(), .Float32)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float32)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1531,12 +1531,12 @@ fn test_compile_ir_text_scalar_ceil_f32:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_round_f32:
-    let a_mem = match alloc(default_device(), 4usize)
+    let a_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1546,7 +1546,7 @@ fn test_compile_ir_text_scalar_round_f32:
 
     let src = compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = round %0\nstore out [] %1\nreturn\n")
 
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1556,7 +1556,7 @@ fn test_compile_ir_text_scalar_round_f32:
     entries.push(bind("a", view_contiguous(a_mem, shape_scalar(), .Float32)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float32)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1572,12 +1572,12 @@ fn test_compile_ir_text_scalar_round_f32:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_sqrt_f32:
-    let a_mem = match alloc(default_device(), 4usize)
+    let a_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1587,7 +1587,7 @@ fn test_compile_ir_text_scalar_sqrt_f32:
 
     let src = compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = sqrt %0\nstore out [] %1\nreturn\n")
 
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1597,7 +1597,7 @@ fn test_compile_ir_text_scalar_sqrt_f32:
     entries.push(bind("a", view_contiguous(a_mem, shape_scalar(), .Float32)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float32)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1613,12 +1613,12 @@ fn test_compile_ir_text_scalar_sqrt_f32:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_rsqrt_f32:
-    let a_mem = match alloc(default_device(), 4usize)
+    let a_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1628,7 +1628,7 @@ fn test_compile_ir_text_scalar_rsqrt_f32:
 
     let src = compile_text_source("param a in [] f32\nparam out out [] f32\n%0 = load a []\n%1 = rsqrt %0\nstore out [] %1\nreturn\n")
 
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1638,7 +1638,7 @@ fn test_compile_ir_text_scalar_rsqrt_f32:
     entries.push(bind("a", view_contiguous(a_mem, shape_scalar(), .Float32)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Float32)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1654,17 +1654,17 @@ fn test_compile_ir_text_scalar_rsqrt_f32:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_add_i64:
-    let a_mem = match alloc(default_device(), 8usize)
+    let a_mem = match alloc(default_device(), 8usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let b_mem = match alloc(default_device(), 8usize)
+    let b_mem = match alloc(default_device(), 8usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 8usize)
+    let out_mem = match alloc(default_device(), 8usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1674,7 +1674,7 @@ fn test_compile_ir_text_scalar_add_i64:
     write_i64(b_mem, 0, 2345678901 as i64)
 
     let src = compile_text_source("param a in [] i64\nparam b in [] i64\nparam out out [] i64\n%0 = load a []\n%1 = load b []\n%2 = add %0 %1\nstore out [] %2\nreturn\n")
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1685,7 +1685,7 @@ fn test_compile_ir_text_scalar_add_i64:
     entries.push(bind("b", view_contiguous(b_mem, shape_scalar(), .Int64)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .Int64)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1702,17 +1702,17 @@ fn test_compile_ir_text_scalar_add_i64:
     free(out_mem)
 
 fn test_compile_ir_text_scalar_xor_u32:
-    let a_mem = match alloc(default_device(), 4usize)
+    let a_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let b_mem = match alloc(default_device(), 4usize)
+    let b_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let out_mem = match alloc(default_device(), 4usize)
+    let out_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1722,7 +1722,7 @@ fn test_compile_ir_text_scalar_xor_u32:
     write_u32(b_mem, 0, 10 as u32)
 
     let src = compile_text_source("param a in [] u32\nparam b in [] u32\nparam out out [] u32\n%0 = load a []\n%1 = load b []\n%2 = xor %0 %1\nstore out [] %2\nreturn\n")
-    let prog = match compile(device_info(default_device()), src)
+    let prog = match compile(device_info(default_device()), src):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -1733,7 +1733,7 @@ fn test_compile_ir_text_scalar_xor_u32:
     entries.push(bind("b", view_contiguous(b_mem, shape_scalar(), .UInt32)))
     entries.push(bind("out", view_contiguous(out_mem, shape_scalar(), .UInt32)))
 
-    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, prog, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)

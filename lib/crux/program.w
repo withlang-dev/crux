@@ -160,6 +160,6 @@ pub fn program_destroy(prog: *mut Program):
     if slot >= 0:
         let rec = PROGRAMS[slot]
         PROGRAMS[slot] = { rec with live: false }
-    let raw = unsafe: (*(prog as *mut CPUProgram)).base
+    let raw = unsafe { (*(prog as *mut CPUProgram)).base }
     if raw != null:
         let _ = realloc(raw, 0)

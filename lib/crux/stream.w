@@ -34,7 +34,7 @@ fn cpu_event_create() -> Result[*mut Event, SubstrateError]:
 fn stream_device(stream: *mut Stream) -> *mut Device:
     if stream == null:
         return default_device()
-    unsafe: (*(stream as *mut CPUStream)).device
+    unsafe { (*(stream as *mut CPUStream)).device }
 
 fn null_view -> View:
     View {
@@ -143,7 +143,7 @@ fn copy_n_bytes(src: *mut u8, dst: *mut u8, size: Size):
 fn fill_n_bytes(dst: *mut u8, size: Size, value: Scalar):
     var i: Size = 0usize
     while i < size:
-        let shift = (i * 8usize) as i32
+        let shift: u32 = (i * 8usize) as u32
         let byte = (value.bits >> shift) as u8
         unsafe:
             *(dst + i as i64) = byte
@@ -155,8 +155,8 @@ fn copy_indexed(src: View, dst: View, indices: Shape, dim: i32, elem_size: Size)
         let dst_base = memory_ptr(dst.memory)
         if src_base == null or dst_base == null:
             return Err(.InvalidView("copy view memory is null"))
-        let src_ptr = unsafe: src_base + view_offset_of(src, indices) as i64
-        let dst_ptr = unsafe: dst_base + view_offset_of(dst, indices) as i64
+        let src_ptr = unsafe { src_base + view_offset_of(src, indices) as i64 }
+        let dst_ptr = unsafe { dst_base + view_offset_of(dst, indices) as i64 }
         copy_n_bytes(src_ptr, dst_ptr, elem_size)
         return Ok(0)
     let extent = shape_get(src.shape, dim)
@@ -172,7 +172,7 @@ fn fill_indexed(dst: View, value: Scalar, indices: Shape, dim: i32, elem_size: S
         let dst_base = memory_ptr(dst.memory)
         if dst_base == null:
             return Err(.InvalidView("fill view memory is null"))
-        let dst_ptr = unsafe: dst_base + view_offset_of(dst, indices) as i64
+        let dst_ptr = unsafe { dst_base + view_offset_of(dst, indices) as i64 }
         fill_n_bytes(dst_ptr, elem_size, value)
         return Ok(0)
     let extent = shape_get(dst.shape, dim)
@@ -197,7 +197,7 @@ pub fn stream_create(device: *mut Device) -> *mut Stream:
 pub fn stream_destroy(stream: *mut Stream):
     if stream == null:
         return
-    let raw = unsafe: (*(stream as *mut CPUStream)).base
+    let raw = unsafe { (*(stream as *mut CPUStream)).base }
     if raw != null:
         let _ = realloc(raw, 0)
 
@@ -237,12 +237,12 @@ pub fn copy_bytes(stream: *mut Stream, src: *mut Memory, src_offset: Size, dst: 
         return Err(.InvalidView("copy memory is null"))
     if not range_fits(memory_size(src), src_offset, size) or not range_fits(memory_size(dst), dst_offset, size):
         return Err(.ShapeMismatch("copy bytes range exceeds memory"))
-    let src_ptr = unsafe: src_base + src_offset as i64
-    let dst_ptr = unsafe: dst_base + dst_offset as i64
+    let src_ptr = unsafe { src_base + src_offset as i64 }
+    let dst_ptr = unsafe { dst_base + dst_offset as i64 }
     copy_n_bytes(src_ptr, dst_ptr, size)
     cpu_event_create()
 
-pub fn copy(stream: *mut Stream, src: View, dst: View) -> Result[*mut Event, SubstrateError]:
+pub fn copy_view(stream: *mut Stream, src: View, dst: View) -> Result[*mut Event, SubstrateError]:
     if stream == null:
         return Err(.StreamError("stream handle is null"))
     let src_norm = view_canonicalize(src)
@@ -281,7 +281,7 @@ pub fn fill(stream: *mut Stream, dst: View, value: Scalar) -> Result[*mut Event,
         let count = view_elem_count(dst_norm)
         var i: Size = 0usize
         while i < count:
-            let dst_ptr = unsafe: base + (dst_norm.offset + i * elem_size) as i64
+            let dst_ptr = unsafe { base + (dst_norm.offset + i * elem_size) as i64 }
             fill_n_bytes(dst_ptr, elem_size, value)
             i = i + 1usize
         return cpu_event_create()
@@ -295,7 +295,7 @@ pub fn event_wait(event: *mut Event):
 pub fn event_is_done(event: *mut Event) -> bool:
     if event == null:
         return true
-    unsafe: (*(event as *mut CPUEvent)).done
+    unsafe { (*(event as *mut CPUEvent)).done }
 
 pub fn event_elapsed(start: *mut Event, end: *mut Event) -> f64:
     let _ = start
@@ -305,6 +305,6 @@ pub fn event_elapsed(start: *mut Event, end: *mut Event) -> f64:
 pub fn event_destroy(event: *mut Event):
     if event == null:
         return
-    let raw = unsafe: (*(event as *mut CPUEvent)).base
+    let raw = unsafe { (*(event as *mut CPUEvent)).base }
     if raw != null:
         let _ = realloc(raw, 0)

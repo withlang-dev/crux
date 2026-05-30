@@ -23,6 +23,7 @@ pub type Dim3 {
     y: Size,
     z: Size,
 }
+impl Copy for Dim3
 
 pub fn dim3(x: Size, y: Size, z: Size) -> Dim3:
     Dim3 { x, y, z }
@@ -31,6 +32,7 @@ pub type Shape {
     dims: [Size; 8],
     rank: i32,
 }
+impl Copy for Shape
 
 pub fn shape_scalar -> Shape:
     Shape { dims: [0usize; 8], rank: 0 }
@@ -97,6 +99,7 @@ pub type Strides {
     elems: [Stride; 8],
     rank: i32,
 }
+impl Copy for Strides
 
 pub fn strides_zero -> Strides:
     Strides { elems: [0isize; 8], rank: 0 }
@@ -138,9 +141,10 @@ pub enum DType {
     | Float64
     | BFloat16
 }
+impl Copy for DType
 
 pub fn dtype_size(dtype: DType) -> Size:
-    match dtype
+    match dtype:
         .Int8 | .UInt8 => 1usize
         .Int16 | .UInt16 | .Float16 | .BFloat16 => 2usize
         .Int32 | .UInt32 | .Float32 => 4usize
@@ -175,6 +179,7 @@ pub type Scalar {
     bits: u64,
     dtype: DType,
 }
+impl Copy for Scalar
 
 pub type IRInst {
     op: i32,
@@ -184,20 +189,21 @@ pub type IRInst {
     d2: i32,
     d3: i32,
 }
+impl Copy for IRInst
 
 pub fn scalar_i32(v: i32) -> Scalar:
     Scalar { bits: v as u64, dtype: .Int32 }
 
 pub fn scalar_i8(v: i8) -> Scalar:
-    let raw: u8 = unsafe: transmute[u8](v)
+    let raw: u8 = unsafe { transmute[u8](v) }
     Scalar { bits: raw as u64, dtype: .Int8 }
 
 pub fn scalar_i16(v: i16) -> Scalar:
-    let raw: u16 = unsafe: transmute[u16](v)
+    let raw: u16 = unsafe { transmute[u16](v) }
     Scalar { bits: raw as u64, dtype: .Int16 }
 
 pub fn scalar_i64(v: i64) -> Scalar:
-    let raw: u64 = unsafe: transmute[u64](v)
+    let raw: u64 = unsafe { transmute[u64](v) }
     Scalar { bits: raw, dtype: .Int64 }
 
 pub fn scalar_u8(v: u8) -> Scalar:
@@ -213,11 +219,11 @@ pub fn scalar_u64(v: u64) -> Scalar:
     Scalar { bits: v, dtype: .UInt64 }
 
 pub fn scalar_f32(v: f32) -> Scalar:
-    let raw: u32 = unsafe: transmute[u32](v)
+    let raw: u32 = unsafe { transmute[u32](v) }
     Scalar { bits: raw as u64, dtype: .Float32 }
 
 pub fn scalar_f64(v: f64) -> Scalar:
-    let raw: u64 = unsafe: transmute[u64](v)
+    let raw: u64 = unsafe { transmute[u64](v) }
     Scalar { bits: raw, dtype: .Float64 }
 
 pub fn scalar_f16_bits(bits: u16) -> Scalar:
@@ -228,18 +234,19 @@ pub fn scalar_bf16_bits(bits: u16) -> Scalar:
 
 pub fn scalar_low_i32(bits: u64) -> i32:
     let raw: u32 = bits as u32
-    unsafe: transmute[i32](raw)
+    unsafe { transmute[i32](raw) }
 
 pub fn scalar_high_i32(bits: u64) -> i32:
     let raw: u32 = (bits >> 32) as u32
-    unsafe: transmute[i32](raw)
+    unsafe { transmute[i32](raw) }
 
 pub fn scalar_bits_from_words(low: i32, high: i32) -> u64:
-    let low_u: u32 = unsafe: transmute[u32](low)
-    let high_u: u32 = unsafe: transmute[u32](high)
+    let low_u: u32 = unsafe { transmute[u32](low) }
+    let high_u: u32 = unsafe { transmute[u32](high) }
     (low_u as u64) | ((high_u as u64) << 32)
 
 pub enum DeviceKind { CPU | GPU | Accelerator }
+impl Copy for DeviceKind
 
 pub type DeviceInfo {
     name: str,
@@ -255,8 +262,10 @@ pub type DeviceInfo {
     subgroup_size: i32,
     unified_memory: bool,
 }
+impl Copy for DeviceInfo
 
 pub enum ParamMode { In | Out | InOut | Scratch }
+impl Copy for ParamMode
 
 pub type View {
     memory: *mut Memory,
@@ -265,6 +274,7 @@ pub type View {
     strides: Strides,
     dtype: DType,
 }
+impl Copy for View
 
 pub type ViewDesc {
     shape: Shape,
@@ -272,6 +282,7 @@ pub type ViewDesc {
     dtype: DType,
     offset: Size = 0,
 }
+impl Copy for ViewDesc
 
 pub type ParamDesc {
     name: str,
@@ -279,6 +290,7 @@ pub type ParamDesc {
     rank: i32,
     dtype: DType,
 }
+impl Copy for ParamDesc
 
 pub type ProgramSig {
     params: Vec[ParamDesc],
@@ -295,6 +307,7 @@ pub type BindEntry {
     name: str,
     view: View,
 }
+impl Copy for BindEntry
 
 pub type Bindings {
     entries: Vec[BindEntry],

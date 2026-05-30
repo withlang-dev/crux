@@ -564,7 +564,7 @@ fn make_local_private_source -> ProgramSource:
     make_source(insts, aux, strings)
 
 fn compile_is_compile_error(source: ProgramSource) -> bool:
-    let prog = match compile(device_info(default_device()), source)
+    let prog = match compile(device_info(default_device()), source):
         Ok(v) => v
         Err(_) => return true
     program_destroy(prog)
@@ -616,7 +616,7 @@ fn test_ir_validation_accepts_cast:
     assert(not compile_is_compile_error(make_cast_source()))
 
 fn test_ir_validation_accepts_spec_constant_headers:
-    let prog = match compile(device_info(default_device()), make_spec_constant_source())
+    let prog = match compile(device_info(default_device()), make_spec_constant_source()):
         Ok(v) => v
         Err(_) =>
             assert(false)

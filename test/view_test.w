@@ -14,7 +14,7 @@ fn test_view_constructor_validates_rank_mismatch:
         strides: strides_zero(),
         dtype: .Float32,
     }
-    let got_invalid = match view(null_memory(), desc)
+    let got_invalid = match view(null_memory(), desc):
         Err(.InvalidView(_)) => true
         _ => false
     assert(got_invalid)
@@ -37,14 +37,14 @@ fn test_view_transpose_swaps_shape_and_stride:
 fn test_view_reshape_rejects_non_contiguous:
     let v = view_contiguous(null_memory(), shape2(3, 4), .Float32)
     let transposed = view_transpose(v, 0, 1)
-    let got_unsupported = match view_reshape(transposed, shape2(2, 6))
+    let got_unsupported = match view_reshape(transposed, shape2(2, 6)):
         Err(.Unsupported(_)) => true
         _ => false
     assert(got_unsupported)
 
 fn test_view_broadcast_sets_zero_stride:
     let row = view_contiguous(null_memory(), shape2(1, 4), .Float32)
-    let expanded = match view_broadcast(row, shape2(3, 4))
+    let expanded = match view_broadcast(row, shape2(3, 4)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -55,7 +55,7 @@ fn test_view_broadcast_sets_zero_stride:
 
 fn test_view_broadcast_rejects_incompatible_dims:
     let left = view_contiguous(null_memory(), shape2(2, 4), .Float32)
-    let got_mismatch = match view_broadcast(left, shape2(3, 4))
+    let got_mismatch = match view_broadcast(left, shape2(3, 4)):
         Err(.ShapeMismatch(_)) => true
         _ => false
     assert(got_mismatch)

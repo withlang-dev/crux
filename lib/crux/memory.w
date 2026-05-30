@@ -73,7 +73,7 @@ pub fn memory_from_ptr(device: *mut Device, ptr: *mut u8, size: Size) -> *mut Me
     if ptr == null:
         return null_memory()
     let actual_device = if device == null then default_device() else device
-    let meta = match alloc_meta()
+    let meta = match alloc_meta():
         Ok(v) => v
         Err(_) => return null_memory()
     unsafe:
@@ -89,10 +89,10 @@ pub fn free(mem: *mut Memory):
     if mem == null:
         return
     let meta = mem as *mut CPUMemory
-    let owner_arena = unsafe: (*meta).owner_arena
-    let data = unsafe: (*meta).data
-    let base = unsafe: (*meta).base
-    let borrowed = unsafe: (*meta).borrowed
+    let owner_arena = unsafe meta.owner_arena
+    let data = unsafe meta.data
+    let base = unsafe meta.base
+    let borrowed = unsafe meta.borrowed
     if owner_arena == null and not borrowed and data != null:
         cpu_release(data)
     if base != null:
@@ -106,19 +106,19 @@ pub fn memory_size(mem: *mut Memory) -> Size:
     if mem == null:
         return 0usize
     let meta = mem as *mut CPUMemory
-    unsafe: (*meta).size
+    unsafe meta.size
 
 pub fn memory_device(mem: *mut Memory) -> *mut Device:
     if mem == null:
         return default_device()
     let meta = mem as *mut CPUMemory
-    unsafe: (*meta).device
+    unsafe meta.device
 
 pub fn memory_ptr(mem: *mut Memory) -> *mut u8:
     if mem == null:
         return null
     let meta = mem as *mut CPUMemory
-    let data = unsafe: (*meta).data
+    let data = unsafe meta.data
     if data == null:
         return null
     data as *mut u8
@@ -155,8 +155,8 @@ pub fn arena_destroy(arena: *mut Arena):
     if arena == null:
         return
     let raw = arena as *mut CPUArena
-    let data = unsafe: (*raw).data
-    let base = unsafe: (*raw).base
+    let data = unsafe raw.data
+    let base = unsafe raw.base
     if data != null:
         cpu_release(data)
     if base != null:
@@ -166,15 +166,15 @@ pub fn arena_alloc(arena: *mut Arena, size: Size, align: Size) -> Result[*mut Me
     if arena == null:
         return Err(.Unsupported("arena handle is null"))
     let raw_arena = arena as *mut CPUArena
-    let start = align_up(unsafe: (*raw_arena).used, align)
-    let capacity = unsafe: (*raw_arena).size
+    let start = align_up(unsafe raw_arena.used, align)
+    let capacity = unsafe raw_arena.size
     if start > capacity:
         return Err(.OutOfMemory)
     if size > capacity - start:
         return Err(.OutOfMemory)
     let next = start + size
     let meta = alloc_meta()?
-    let data = unsafe: ((*raw_arena).data as *mut u8 + start as i64) as *mut c_void
+    let data = unsafe { ((*raw_arena).data as *mut u8 + start as i64) as *mut c_void }
     unsafe:
         (*meta).base = meta as *mut c_void
         (*meta).data = data
@@ -196,4 +196,4 @@ pub fn arena_used(arena: *mut Arena) -> Size:
     if arena == null:
         return 0usize
     let raw = arena as *mut CPUArena
-    unsafe: (*raw).used
+    unsafe raw.used

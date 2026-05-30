@@ -4,7 +4,7 @@ use crux.kernels
 use crux.program
 
 fn compile_sig(source: ProgramSource) -> ProgramSig:
-    let prog = match compile(device_info(default_device()), source)
+    let prog = match compile(device_info(default_device()), source):
         Ok(v) => v
         Err(_) =>
             assert(false)

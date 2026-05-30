@@ -10,6 +10,7 @@ type InterpValue {
     raw: u64,
     dtype: DType,
 }
+impl Copy for InterpValue
 
 type LoopVars {
     v0: i32,
@@ -21,6 +22,7 @@ type LoopVars {
     v6: i32,
     v7: i32,
 }
+impl Copy for LoopVars
 
 type ScratchSlot {
     ptr: *mut u8,
@@ -29,6 +31,7 @@ type ScratchSlot {
     live: bool,
     generation: i32,
 }
+impl Copy for ScratchSlot
 
 type InterpState {
     values: Vec[InterpValue],
@@ -43,6 +46,7 @@ type BlockRange {
     body_start: i32,
     block_end: i32,
 }
+impl Copy for BlockRange
 
 fn interp_value_zero -> InterpValue:
     InterpValue { raw: 0, dtype: .Int32 }
@@ -112,10 +116,10 @@ fn init_state(value_count: i32, local_count: i32, private_count: i32) -> InterpS
         private_generation: 0,
     }
 
-fn mask_bits(width: i32) -> u64:
+fn mask_bits(width: u32) -> u64:
     if width >= 64:
         return 18446744073709551615u64
-    (1u64 << width) - 1u64
+    (1u64 << width) - 1
 
 fn dtype_is_signed_int(dtype: DType) -> bool:
     dtype == .Int8 or dtype == .Int16 or dtype == .Int32 or dtype == .Int64
@@ -129,7 +133,7 @@ fn dtype_is_int(dtype: DType) -> bool:
 fn dtype_is_float(dtype: DType) -> bool:
     dtype == .Float16 or dtype == .Float32 or dtype == .Float64 or dtype == .BFloat16
 
-fn dtype_bit_width(dtype: DType) -> i32:
+fn dtype_bit_width(dtype: DType) -> u32:
     if dtype == .Int8 or dtype == .UInt8:
         return 8
     if dtype == .Int16 or dtype == .UInt16 or dtype == .Float16 or dtype == .BFloat16:
@@ -140,18 +144,18 @@ fn dtype_bit_width(dtype: DType) -> i32:
         return 64
     0
 
-fn truncate_raw(raw: u64, width: i32) -> u64:
+fn truncate_raw(raw: u64, width: u32) -> u64:
     raw & mask_bits(width)
 
-fn sign_extend_raw(raw: u64, width: i32) -> i64:
+fn sign_extend_raw(raw: u64, width: u32) -> i64:
     if width >= 64:
-        return unsafe: transmute[i64](raw)
-    let shift = 64 - width
-    let shifted: i64 = unsafe: transmute[i64](raw << shift)
+        return unsafe { transmute[i64](raw) }
+    let shift: u32 = 64 - width
+    let shifted: i64 = unsafe { transmute[i64](raw << shift) }
     shifted >> shift
 
 fn value_from_signed(dtype: DType, value: i64) -> InterpValue:
-    let raw: u64 = unsafe: transmute[u64](value)
+    let raw: u64 = unsafe { transmute[u64](value) }
     InterpValue {
         raw: truncate_raw(raw, dtype_bit_width(dtype)),
         dtype,
@@ -169,7 +173,7 @@ fn f16_bits_to_f32(bits: u16) -> f32:
     let frac = bits as u32 & 1023u32
     if exp == 0u32:
         if frac == 0u32:
-            return unsafe: transmute[f32](sign)
+            return unsafe { transmute[f32](sign) }
         var mant = frac
         var exponent: i32 = -14
         while (mant & 1024u32) == 0u32:
@@ -178,16 +182,16 @@ fn f16_bits_to_f32(bits: u16) -> f32:
         mant = mant & 1023u32
         let exp32 = (exponent + 127) as u32
         let raw = sign | (exp32 << 23) | (mant << 13)
-        return unsafe: transmute[f32](raw)
+        return unsafe { transmute[f32](raw) }
     if exp == 31u32:
         let raw = sign | 2139095040u32 | (frac << 13)
-        return unsafe: transmute[f32](raw)
+        return unsafe { transmute[f32](raw) }
     let exp32 = exp + 112u32
     let raw = sign | (exp32 << 23) | (frac << 13)
-    unsafe: transmute[f32](raw)
+    unsafe { transmute[f32](raw) }
 
 fn f32_to_f16_bits(value: f32) -> u16:
-    let raw: u32 = unsafe: transmute[u32](value)
+    let raw: u32 = unsafe { transmute[u32](value) }
     let sign = (raw >> 16) & 32768u32
     let exp = ((raw >> 23) & 255u32) as i32
     let frac = raw & 8388607u32
@@ -203,7 +207,7 @@ fn f32_to_f16_bits(value: f32) -> u16:
         if half_exp < -10:
             return sign as u16
         let mant = frac | 8388608u32
-        let shift = 14 - half_exp
+        let shift: u32 = (14 - half_exp) as u32
         var rounded = mant >> shift
         let round_bit = (mant >> (shift - 1)) & 1u32
         if round_bit != 0u32:
@@ -219,10 +223,10 @@ fn f32_to_f16_bits(value: f32) -> u16:
 
 fn bf16_bits_to_f32(bits: u16) -> f32:
     let raw = (bits as u32) << 16
-    unsafe: transmute[f32](raw)
+    unsafe { transmute[f32](raw) }
 
 fn f32_to_bf16_bits(value: f32) -> u16:
-    let raw: u32 = unsafe: transmute[u32](value)
+    let raw: u32 = unsafe { transmute[u32](value) }
     let lsb = (raw >> 16) & 1u32
     let rounded = raw + 32767u32 + lsb
     (rounded >> 16) as u16
@@ -263,11 +267,11 @@ fn value_from_u64(value: u64) -> InterpValue:
     value_from_unsigned(.UInt64, value)
 
 fn value_from_f32(value: f32) -> InterpValue:
-    let raw: u32 = unsafe: transmute[u32](value)
+    let raw: u32 = unsafe { transmute[u32](value) }
     InterpValue { raw: raw as u64, dtype: .Float32 }
 
 fn value_from_f64(value: f64) -> InterpValue:
-    let raw: u64 = unsafe: transmute[u64](value)
+    let raw: u64 = unsafe { transmute[u64](value) }
     InterpValue { raw, dtype: .Float64 }
 
 fn value_from_f16_bits(bits: u16) -> InterpValue:
@@ -290,10 +294,10 @@ fn value_as_f64(value: InterpValue) -> Result[f64, SubstrateError]:
     if value.dtype == .Float16:
         return Ok(f16_bits_to_f32(value.raw as u16) as f64)
     if value.dtype == .Float32:
-        let decoded: f32 = unsafe: transmute[f32](value.raw as u32)
+        let decoded: f32 = unsafe { transmute[f32](value.raw as u32) }
         return Ok(decoded as f64)
     if value.dtype == .Float64:
-        let decoded: f64 = unsafe: transmute[f64](value.raw)
+        let decoded: f64 = unsafe { transmute[f64](value.raw) }
         return Ok(decoded)
     if value.dtype == .BFloat16:
         return Ok(bf16_bits_to_f32(value.raw as u16) as f64)
@@ -404,41 +408,41 @@ fn load_ptr(base: *mut u8, dtype: DType, byte_offset: Size) -> Result[InterpValu
     if base == null:
         return Err(.InvalidView("view memory is null"))
     if dtype == .Int8:
-        let ptr = unsafe: (base + byte_offset as i64) as *mut i8
-        return Ok(value_from_i8(unsafe: *ptr))
+        let ptr = unsafe { (base + byte_offset as i64) as *mut i8 }
+        return Ok(value_from_i8(unsafe *ptr))
     if dtype == .UInt8:
-        let ptr = unsafe: (base + byte_offset as i64) as *mut u8
-        return Ok(value_from_u8(unsafe: *ptr))
+        let ptr = unsafe { (base + byte_offset as i64) as *mut u8 }
+        return Ok(value_from_u8(unsafe *ptr))
     if dtype == .Int16:
-        let ptr = unsafe: (base + byte_offset as i64) as *mut i16
-        return Ok(value_from_i16(unsafe: *ptr))
+        let ptr = unsafe { (base + byte_offset as i64) as *mut i16 }
+        return Ok(value_from_i16(unsafe *ptr))
     if dtype == .UInt16:
-        let ptr = unsafe: (base + byte_offset as i64) as *mut u16
-        return Ok(value_from_u16(unsafe: *ptr))
+        let ptr = unsafe { (base + byte_offset as i64) as *mut u16 }
+        return Ok(value_from_u16(unsafe *ptr))
     if dtype == .Int32:
-        let ptr = unsafe: (base + byte_offset as i64) as *mut i32
-        return Ok(value_from_i32(unsafe: *ptr))
+        let ptr = unsafe { (base + byte_offset as i64) as *mut i32 }
+        return Ok(value_from_i32(unsafe *ptr))
     if dtype == .Int64:
-        let ptr = unsafe: (base + byte_offset as i64) as *mut i64
-        return Ok(value_from_i64(unsafe: *ptr))
+        let ptr = unsafe { (base + byte_offset as i64) as *mut i64 }
+        return Ok(value_from_i64(unsafe *ptr))
     if dtype == .UInt32:
-        let ptr = unsafe: (base + byte_offset as i64) as *mut u32
-        return Ok(value_from_u32(unsafe: *ptr))
+        let ptr = unsafe { (base + byte_offset as i64) as *mut u32 }
+        return Ok(value_from_u32(unsafe *ptr))
     if dtype == .UInt64:
-        let ptr = unsafe: (base + byte_offset as i64) as *mut u64
-        return Ok(value_from_u64(unsafe: *ptr))
+        let ptr = unsafe { (base + byte_offset as i64) as *mut u64 }
+        return Ok(value_from_u64(unsafe *ptr))
     if dtype == .Float16:
-        let ptr = unsafe: (base + byte_offset as i64) as *mut u16
-        return Ok(value_from_f16_bits(unsafe: *ptr))
+        let ptr = unsafe { (base + byte_offset as i64) as *mut u16 }
+        return Ok(value_from_f16_bits(unsafe *ptr))
     if dtype == .Float32:
-        let ptr = unsafe: (base + byte_offset as i64) as *mut f32
-        return Ok(value_from_f32(unsafe: *ptr))
+        let ptr = unsafe { (base + byte_offset as i64) as *mut f32 }
+        return Ok(value_from_f32(unsafe *ptr))
     if dtype == .Float64:
-        let ptr = unsafe: (base + byte_offset as i64) as *mut f64
-        return Ok(value_from_f64(unsafe: *ptr))
+        let ptr = unsafe { (base + byte_offset as i64) as *mut f64 }
+        return Ok(value_from_f64(unsafe *ptr))
     if dtype == .BFloat16:
-        let ptr = unsafe: (base + byte_offset as i64) as *mut u16
-        return Ok(value_from_bf16_bits(unsafe: *ptr))
+        let ptr = unsafe { (base + byte_offset as i64) as *mut u16 }
+        return Ok(value_from_bf16_bits(unsafe *ptr))
     Err(.Unsupported("cpu interpreter dtype not implemented"))
 
 fn load_value(view: View, byte_offset: Size) -> Result[InterpValue, SubstrateError]:
@@ -449,62 +453,62 @@ fn store_ptr(base: *mut u8, dtype: DType, byte_offset: Size, value: InterpValue)
     if base == null:
         return Err(.InvalidView("view memory is null"))
     if dtype == .Int8:
-        let ptr = unsafe: (base + byte_offset as i64) as *mut i8
+        let ptr = unsafe { (base + byte_offset as i64) as *mut i8 }
         unsafe:
             *ptr = value_as_signed(value)? as i8
         return Ok(0)
     if dtype == .UInt8:
-        let ptr = unsafe: (base + byte_offset as i64) as *mut u8
+        let ptr = unsafe { (base + byte_offset as i64) as *mut u8 }
         unsafe:
             *ptr = value_as_unsigned(value)? as u8
         return Ok(0)
     if dtype == .Int16:
-        let ptr = unsafe: (base + byte_offset as i64) as *mut i16
+        let ptr = unsafe { (base + byte_offset as i64) as *mut i16 }
         unsafe:
             *ptr = value_as_signed(value)? as i16
         return Ok(0)
     if dtype == .UInt16:
-        let ptr = unsafe: (base + byte_offset as i64) as *mut u16
+        let ptr = unsafe { (base + byte_offset as i64) as *mut u16 }
         unsafe:
             *ptr = value_as_unsigned(value)? as u16
         return Ok(0)
     if dtype == .Int32:
-        let ptr = unsafe: (base + byte_offset as i64) as *mut i32
+        let ptr = unsafe { (base + byte_offset as i64) as *mut i32 }
         unsafe:
             *ptr = value_as_signed(value)? as i32
         return Ok(0)
     if dtype == .Int64:
-        let ptr = unsafe: (base + byte_offset as i64) as *mut i64
+        let ptr = unsafe { (base + byte_offset as i64) as *mut i64 }
         unsafe:
             *ptr = value_as_signed(value)?
         return Ok(0)
     if dtype == .UInt32:
-        let ptr = unsafe: (base + byte_offset as i64) as *mut u32
+        let ptr = unsafe { (base + byte_offset as i64) as *mut u32 }
         unsafe:
             *ptr = value_as_unsigned(value)? as u32
         return Ok(0)
     if dtype == .UInt64:
-        let ptr = unsafe: (base + byte_offset as i64) as *mut u64
+        let ptr = unsafe { (base + byte_offset as i64) as *mut u64 }
         unsafe:
             *ptr = value_as_unsigned(value)?
         return Ok(0)
     if dtype == .Float16:
-        let ptr = unsafe: (base + byte_offset as i64) as *mut u16
+        let ptr = unsafe { (base + byte_offset as i64) as *mut u16 }
         unsafe:
             *ptr = if value.dtype == .Float16 then value.raw as u16 else f32_to_f16_bits(value_as_f64(value)? as f32)
         return Ok(0)
     if dtype == .Float32:
-        let ptr = unsafe: (base + byte_offset as i64) as *mut f32
+        let ptr = unsafe { (base + byte_offset as i64) as *mut f32 }
         unsafe:
             *ptr = value_as_f64(value)? as f32
         return Ok(0)
     if dtype == .Float64:
-        let ptr = unsafe: (base + byte_offset as i64) as *mut f64
+        let ptr = unsafe { (base + byte_offset as i64) as *mut f64 }
         unsafe:
             *ptr = value_as_f64(value)?
         return Ok(0)
     if dtype == .BFloat16:
-        let ptr = unsafe: (base + byte_offset as i64) as *mut u16
+        let ptr = unsafe { (base + byte_offset as i64) as *mut u16 }
         unsafe:
             *ptr = if value.dtype == .BFloat16 then value.raw as u16 else f32_to_bf16_bits(value_as_f64(value)? as f32)
         return Ok(0)
@@ -854,7 +858,7 @@ fn run_log2(value: InterpValue) -> Result[InterpValue, SubstrateError]:
         if reduced == 1.0:
             return Ok(value_from_float_dtype(value.dtype, shifts as f64))
         let reduced_log = run_log(value_from_f32(reduced))?
-        let ln_value: f32 = unsafe: transmute[f32](reduced_log.raw as u32)
+        let ln_value: f32 = unsafe { transmute[f32](reduced_log.raw as u32) }
         return Ok(value_from_float_dtype(value.dtype, (ln_value / ln2_f32 + shifts as f32) as f64))
     if value.dtype == .Float64:
         let decoded = value_as_f64(value)?
@@ -871,7 +875,7 @@ fn run_log2(value: InterpValue) -> Result[InterpValue, SubstrateError]:
         if reduced == 1.0:
             return Ok(value_from_f64(shifts as f64))
         let reduced_log = run_log(value_from_f64(reduced))?
-        let ln_value: f64 = unsafe: transmute[f64](reduced_log.raw)
+        let ln_value: f64 = unsafe { transmute[f64](reduced_log.raw) }
         return Ok(value_from_f64(ln_value / ln2_f64 + shifts as f64))
     Err(.Unsupported("cpu interpreter log2 not implemented"))
 
@@ -956,7 +960,7 @@ fn run_tanh(value: InterpValue) -> Result[InterpValue, SubstrateError]:
             return Ok(value_from_float_dtype(value.dtype, 0.0))
         let doubled = value_from_f32(decoded * 2.0)
         let exp_value = run_exp(doubled)?
-        let ev: f32 = unsafe: transmute[f32](exp_value.raw as u32)
+        let ev: f32 = unsafe { transmute[f32](exp_value.raw as u32) }
         return Ok(value_from_float_dtype(value.dtype, ((ev - 1.0) / (ev + 1.0)) as f64))
     if value.dtype == .Float64:
         let decoded = value_as_f64(value)?
@@ -964,7 +968,7 @@ fn run_tanh(value: InterpValue) -> Result[InterpValue, SubstrateError]:
             return Ok(value_from_f64(0.0))
         let doubled = value_from_f64(decoded * 2.0)
         let exp_value = run_exp(doubled)?
-        let ev: f64 = unsafe: transmute[f64](exp_value.raw)
+        let ev: f64 = unsafe { transmute[f64](exp_value.raw) }
         return Ok(value_from_f64((ev - 1.0) / (ev + 1.0)))
     Err(.Unsupported("cpu interpreter tanh not implemented"))
 

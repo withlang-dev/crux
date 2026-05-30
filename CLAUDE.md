@@ -1,4 +1,4 @@
-# AGENTS
+# CLAUDE
 
 - Whenever you find a problem with the With compiler, gather the evidence and submit an issue to `withlang-dev/with` using the `gh` CLI.
 - When filing compiler issues, include references to the relevant sections or line ranges in `~/with/docs/with-specification.md` whenever the spec covers the expected behavior.

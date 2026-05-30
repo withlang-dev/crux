@@ -19,7 +19,7 @@ fn test_view_smoke:
     assert(strides_get(transposed.strides, 0) == 4)
     assert(strides_get(transposed.strides, 1) == 16)
 
-    let reshaped = match view_reshape(base, shape2(2, 6))
+    let reshaped = match view_reshape(base, shape2(2, 6)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -28,7 +28,7 @@ fn test_view_smoke:
     assert(shape_get(reshaped.shape, 1) == 6)
 
     let row = view_contiguous(null_memory(), shape2(1, 4), .Float32)
-    let broadcast = match view_broadcast(row, shape2(3, 4))
+    let broadcast = match view_broadcast(row, shape2(3, 4)):
         Ok(v) => v
         Err(_) =>
             assert(false)

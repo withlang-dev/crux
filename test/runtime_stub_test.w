@@ -11,7 +11,7 @@ fn unit_grid -> [Size; 3]:
     [1usize, 1usize, 1usize]
 
 fn compile_text_source(text: str) -> ProgramSource:
-    match parse_ir_text(text)
+    match parse_ir_text(text):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -31,7 +31,7 @@ fn test_default_device_info_host_backed:
     assert(info.unified_memory)
 
 fn test_alloc_roundtrip:
-    let mem = match alloc(default_device(), 16usize)
+    let mem = match alloc(default_device(), 16usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -43,11 +43,11 @@ fn test_alloc_roundtrip:
     assert(ptr != null)
     unsafe:
         *ptr = 123
-    assert(unsafe: *ptr == 123)
+    assert(unsafe *ptr == 123)
     free(mem)
 
 fn test_memory_from_ptr_is_borrowed:
-    let owner = match alloc(default_device(), 8usize)
+    let owner = match alloc(default_device(), 8usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -60,12 +60,12 @@ fn test_memory_from_ptr_is_borrowed:
     assert(borrowed != null_memory())
     assert(memory_ptr(borrowed) == ptr)
     free(borrowed)
-    assert(unsafe: *(ptr + 0i64) == 7u8)
-    assert(unsafe: *(ptr + 1i64) == 9u8)
+    assert(unsafe *(ptr + 0i64) == 7u8)
+    assert(unsafe *(ptr + 1i64) == 9u8)
     free(owner)
 
 fn test_arena_allocation_lifecycle:
-    let arena = match arena_create(default_device(), 4096usize)
+    let arena = match arena_create(default_device(), 4096usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -73,12 +73,12 @@ fn test_arena_allocation_lifecycle:
     assert(arena != null_arena())
     assert(arena_used(arena) == 0usize)
 
-    let left = match arena_alloc(arena, 16usize, 8usize)
+    let left = match arena_alloc(arena, 16usize, 8usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let right = match arena_alloc(arena, 8usize, 8usize)
+    let right = match arena_alloc(arena, 8usize, 8usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -95,8 +95,8 @@ fn test_arena_allocation_lifecycle:
     unsafe:
         *left_ptr = 7
         *right_ptr = 9
-    assert(unsafe: *left_ptr == 7)
-    assert(unsafe: *right_ptr == 9)
+    assert(unsafe *left_ptr == 7)
+    assert(unsafe *right_ptr == 9)
 
     free(left)
     free(right)
@@ -105,17 +105,17 @@ fn test_arena_allocation_lifecycle:
     arena_destroy(arena)
 
 fn test_arena_alloc_rejects_overflow:
-    let arena = match arena_create(default_device(), 16usize)
+    let arena = match arena_create(default_device(), 16usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_arena()
-    let first = match arena_alloc(arena, 8usize, 8usize)
+    let first = match arena_alloc(arena, 8usize, 8usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let got_oom = match arena_alloc(arena, 8usize, 32usize)
+    let got_oom = match arena_alloc(arena, 8usize, 32usize):
         Err(.OutOfMemory) => true
         _ => false
     assert(got_oom)
@@ -130,7 +130,7 @@ fn test_program_source_defaults:
     assert(src.strings.len() == 0)
 
 fn test_compile_and_dispatch:
-    let program = match compile(device_info(default_device()), program_source("main"))
+    let program = match compile(device_info(default_device()), program_source("main")):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -139,7 +139,7 @@ fn test_compile_and_dispatch:
     assert(program != null_program())
     assert(stream != null_stream())
     let bindings = Bindings { entries: Vec.new() }
-    let event = match dispatch(stream, program, unit_grid(), bindings)
+    let event = match dispatch(stream, program, unit_grid(), bindings):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -152,13 +152,13 @@ fn test_compile_and_dispatch:
     program_destroy(program)
 
 fn test_dispatch_writes_through_borrowed_memory:
-    let owner = match alloc(default_device(), 4usize)
+    let owner = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
     let borrowed = memory_from_ptr(default_device(), memory_ptr(owner), 4usize)
-    let program = match compile(device_info(default_device()), compile_text_source("param out out [] i32\n%0 = const i32 7\nstore out [] %0\nreturn\n"))
+    let program = match compile(device_info(default_device()), compile_text_source("param out out [] i32\n%0 = const i32 7\nstore out [] %0\nreturn\n")):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -166,13 +166,13 @@ fn test_dispatch_writes_through_borrowed_memory:
     let stream = stream_create(default_device())
     let entries: Vec[BindEntry] = Vec.new()
     entries.push(bind("out", view_contiguous(borrowed, shape_scalar(), .Int32)))
-    let event = match dispatch(stream, program, unit_grid(), bindings_from(entries))
+    let event = match dispatch(stream, program, unit_grid(), bindings_from(entries)):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_event()
     assert(event_is_done(event))
-    assert(unsafe: *(memory_ptr(owner) as *mut i32) == 7)
+    assert(unsafe *(memory_ptr(owner) as *mut i32) == 7)
     event_destroy(event)
     stream_destroy(stream)
     program_destroy(program)
@@ -180,14 +180,14 @@ fn test_dispatch_writes_through_borrowed_memory:
     free(owner)
 
 fn test_dispatch_rejects_oversized_grid:
-    let program = match compile(device_info(default_device()), program_source("main"))
+    let program = match compile(device_info(default_device()), program_source("main")):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_program()
     let stream = stream_create(default_device())
     let bindings = Bindings { entries: Vec.new() }
-    let got_limit_error = match dispatch(stream, program, [70000usize, 1usize, 1usize], bindings)
+    let got_limit_error = match dispatch(stream, program, [70000usize, 1usize, 1usize], bindings):
         Err(.GridExceedsDevice(_)) => true
         _ => false
     assert(got_limit_error)
@@ -195,7 +195,7 @@ fn test_dispatch_rejects_oversized_grid:
     program_destroy(program)
 
 fn test_dispatch_rejects_unexpected_binding:
-    let program = match compile(device_info(default_device()), program_source("main"))
+    let program = match compile(device_info(default_device()), program_source("main")):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -203,7 +203,7 @@ fn test_dispatch_rejects_unexpected_binding:
     let stream = stream_create(default_device())
     let entries: Vec[BindEntry] = Vec.new()
     entries.push(bind("extra", view_contiguous(null_memory(), shape_scalar(), .Int32)))
-    let got_shape_error = match dispatch(stream, program, unit_grid(), bindings_from(entries))
+    let got_shape_error = match dispatch(stream, program, unit_grid(), bindings_from(entries)):
         Err(.ShapeMismatch(_)) => true
         _ => false
     assert(got_shape_error)
@@ -211,7 +211,7 @@ fn test_dispatch_rejects_unexpected_binding:
     program_destroy(program)
 
 fn test_dispatch_rejects_duplicate_binding_names:
-    let program = match compile(device_info(default_device()), compile_text_source("param a in [] i32\nreturn\n"))
+    let program = match compile(device_info(default_device()), compile_text_source("param a in [] i32\nreturn\n")):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -221,7 +221,7 @@ fn test_dispatch_rejects_duplicate_binding_names:
     let value = view_contiguous(null_memory(), shape_scalar(), .Int32)
     entries.push(bind("a", value))
     entries.push(bind("a", value))
-    let got_shape_error = match dispatch(stream, program, unit_grid(), bindings_from(entries))
+    let got_shape_error = match dispatch(stream, program, unit_grid(), bindings_from(entries)):
         Err(.ShapeMismatch(_)) => true
         _ => false
     assert(got_shape_error)
@@ -229,13 +229,13 @@ fn test_dispatch_rejects_duplicate_binding_names:
     program_destroy(program)
 
 fn test_dispatch_rejects_overlapping_writable_bindings:
-    let program = match compile(device_info(default_device()), compile_text_source("param a out [] i32\nparam b out [] i32\nreturn\n"))
+    let program = match compile(device_info(default_device()), compile_text_source("param a out [] i32\nparam b out [] i32\nreturn\n")):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_program()
     let stream = stream_create(default_device())
-    let mem = match alloc(default_device(), 4usize)
+    let mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -244,7 +244,7 @@ fn test_dispatch_rejects_overlapping_writable_bindings:
     let entries: Vec[BindEntry] = Vec.new()
     entries.push(bind("a", same))
     entries.push(bind("b", same))
-    let got_shape_error = match dispatch(stream, program, unit_grid(), bindings_from(entries))
+    let got_shape_error = match dispatch(stream, program, unit_grid(), bindings_from(entries)):
         Err(.ShapeMismatch(_)) => true
         _ => false
     assert(got_shape_error)
@@ -253,13 +253,13 @@ fn test_dispatch_rejects_overlapping_writable_bindings:
     program_destroy(program)
 
 fn test_dispatch_rejects_out_of_range_view:
-    let program = match compile(device_info(default_device()), compile_text_source("param a in [] i32\nreturn\n"))
+    let program = match compile(device_info(default_device()), compile_text_source("param a in [] i32\nreturn\n")):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_program()
     let stream = stream_create(default_device())
-    let mem = match alloc(default_device(), 4usize)
+    let mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -273,7 +273,7 @@ fn test_dispatch_rejects_out_of_range_view:
     }
     let entries: Vec[BindEntry] = Vec.new()
     entries.push(bind("a", bad))
-    let got_invalid = match dispatch(stream, program, unit_grid(), bindings_from(entries))
+    let got_invalid = match dispatch(stream, program, unit_grid(), bindings_from(entries)):
         Err(.InvalidView(_)) => true
         _ => false
     assert(got_invalid)
@@ -284,19 +284,19 @@ fn test_dispatch_rejects_out_of_range_view:
 fn test_collective_reports_unsupported:
     let src = view_contiguous(null_memory(), shape1(4usize), .Float32)
     let dst = view_contiguous(null_memory(), shape1(4usize), .Float32)
-    let got_unsupported = match allreduce_sum(stream_create(default_device()), src, dst)
+    let got_unsupported = match allreduce_sum(stream_create(default_device()), src, dst):
         Err(.Unsupported(_)) => true
         _ => false
     assert(got_unsupported)
 
 fn test_copy_and_fill_roundtrip:
     let stream = stream_create(default_device())
-    let src_mem = match alloc(default_device(), 16usize)
+    let src_mem = match alloc(default_device(), 16usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let dst_mem = match alloc(default_device(), 16usize)
+    let dst_mem = match alloc(default_device(), 16usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -305,7 +305,7 @@ fn test_copy_and_fill_roundtrip:
     let src_view = view_contiguous(src_mem, shape1(4usize), .Int32)
     let dst_view = view_contiguous(dst_mem, shape1(4usize), .Int32)
 
-    let fill_event = match fill(stream, src_view, scalar_i32(11))
+    let fill_event = match fill(stream, src_view, scalar_i32(11)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -313,7 +313,7 @@ fn test_copy_and_fill_roundtrip:
     assert(event_is_done(fill_event))
     event_destroy(fill_event)
 
-    let copy_event = match copy(stream, src_view, dst_view)
+    let copy_event = match copy_view(stream, src_view, dst_view):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -322,10 +322,10 @@ fn test_copy_and_fill_roundtrip:
     event_destroy(copy_event)
 
     let ptr = memory_ptr(dst_mem) as *mut i32
-    assert(unsafe: *(ptr + 0i64) == 11)
-    assert(unsafe: *(ptr + 1i64) == 11)
-    assert(unsafe: *(ptr + 2i64) == 11)
-    assert(unsafe: *(ptr + 3i64) == 11)
+    assert(unsafe *(ptr + 0i64) == 11)
+    assert(unsafe *(ptr + 1i64) == 11)
+    assert(unsafe *(ptr + 2i64) == 11)
+    assert(unsafe *(ptr + 3i64) == 11)
 
     stream_destroy(stream)
     free(src_mem)
@@ -333,13 +333,13 @@ fn test_copy_and_fill_roundtrip:
 
 fn test_fill_float32_writes_bits:
     let stream = stream_create(default_device())
-    let mem = match alloc(default_device(), 4usize)
+    let mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
     let dst = view_contiguous(mem, shape_scalar(), .Float32)
-    let event = match fill(stream, dst, scalar_f32(1.5))
+    let event = match fill(stream, dst, scalar_f32(1.5)):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -347,36 +347,36 @@ fn test_fill_float32_writes_bits:
     assert(event_is_done(event))
     event_destroy(event)
     let ptr = memory_ptr(mem) as *mut f32
-    assert(unsafe: *ptr == 1.5)
+    assert(unsafe *ptr == 1.5)
     stream_destroy(stream)
     free(mem)
 
 fn test_copy_and_fill_reject_broadcast_writes:
     let stream = stream_create(default_device())
-    let src_mem = match alloc(default_device(), 48usize)
+    let src_mem = match alloc(default_device(), 48usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let dst_mem = match alloc(default_device(), 16usize)
+    let dst_mem = match alloc(default_device(), 16usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
     let src = view_contiguous(src_mem, shape2(3usize, 4usize), .Float32)
     let row = view_contiguous(dst_mem, shape2(1usize, 4usize), .Float32)
-    let dst = match view_broadcast(row, shape2(3usize, 4usize))
+    let dst = match view_broadcast(row, shape2(3usize, 4usize)):
         Ok(v) => v
         Err(_) =>
             assert(false)
             row
 
-    let copy_error = match copy(stream, src, dst)
+    let copy_error = match copy_view(stream, src, dst):
         Err(.BroadcastWriteViolation) => true
         _ => false
     assert(copy_error)
 
-    let fill_error = match fill(stream, dst, scalar_f32(2.0))
+    let fill_error = match fill(stream, dst, scalar_f32(2.0)):
         Err(.BroadcastWriteViolation) => true
         _ => false
     assert(fill_error)
@@ -387,12 +387,12 @@ fn test_copy_and_fill_reject_broadcast_writes:
 
 fn test_copy_bytes_roundtrip:
     let stream = stream_create(default_device())
-    let src_mem = match alloc(default_device(), 8usize)
+    let src_mem = match alloc(default_device(), 8usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let dst_mem = match alloc(default_device(), 8usize)
+    let dst_mem = match alloc(default_device(), 8usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -405,7 +405,7 @@ fn test_copy_bytes_roundtrip:
         *(src_ptr + 2i64) = 3u8
         *(src_ptr + 3i64) = 4u8
 
-    let event = match copy_bytes(stream, src_mem, 0usize, dst_mem, 2usize, 4usize)
+    let event = match copy_bytes(stream, src_mem, 0usize, dst_mem, 2usize, 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -414,10 +414,10 @@ fn test_copy_bytes_roundtrip:
     event_destroy(event)
 
     let dst_ptr = memory_ptr(dst_mem)
-    assert(unsafe: *(dst_ptr + 2i64) == 1u8)
-    assert(unsafe: *(dst_ptr + 3i64) == 2u8)
-    assert(unsafe: *(dst_ptr + 4i64) == 3u8)
-    assert(unsafe: *(dst_ptr + 5i64) == 4u8)
+    assert(unsafe *(dst_ptr + 2i64) == 1u8)
+    assert(unsafe *(dst_ptr + 3i64) == 2u8)
+    assert(unsafe *(dst_ptr + 4i64) == 3u8)
+    assert(unsafe *(dst_ptr + 5i64) == 4u8)
 
     stream_destroy(stream)
     free(src_mem)
@@ -425,7 +425,7 @@ fn test_copy_bytes_roundtrip:
 
 fn test_copy_bytes_handles_overlap_like_memmove:
     let stream = stream_create(default_device())
-    let mem = match alloc(default_device(), 8usize)
+    let mem = match alloc(default_device(), 8usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -439,7 +439,7 @@ fn test_copy_bytes_handles_overlap_like_memmove:
         *(ptr + 4i64) = 5u8
         *(ptr + 5i64) = 6u8
 
-    let event = match copy_bytes(stream, mem, 0usize, mem, 2usize, 4usize)
+    let event = match copy_bytes(stream, mem, 0usize, mem, 2usize, 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -447,24 +447,24 @@ fn test_copy_bytes_handles_overlap_like_memmove:
     assert(event_is_done(event))
     event_destroy(event)
 
-    assert(unsafe: *(ptr + 0i64) == 1u8)
-    assert(unsafe: *(ptr + 1i64) == 2u8)
-    assert(unsafe: *(ptr + 2i64) == 1u8)
-    assert(unsafe: *(ptr + 3i64) == 2u8)
-    assert(unsafe: *(ptr + 4i64) == 3u8)
-    assert(unsafe: *(ptr + 5i64) == 4u8)
+    assert(unsafe *(ptr + 0i64) == 1u8)
+    assert(unsafe *(ptr + 1i64) == 2u8)
+    assert(unsafe *(ptr + 2i64) == 1u8)
+    assert(unsafe *(ptr + 3i64) == 2u8)
+    assert(unsafe *(ptr + 4i64) == 3u8)
+    assert(unsafe *(ptr + 5i64) == 4u8)
 
     stream_destroy(stream)
     free(mem)
 
 fn test_copy_rejects_out_of_range_view:
     let stream = stream_create(default_device())
-    let src_mem = match alloc(default_device(), 4usize)
+    let src_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
             null_memory()
-    let dst_mem = match alloc(default_device(), 4usize)
+    let dst_mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -477,7 +477,7 @@ fn test_copy_rejects_out_of_range_view:
         strides: strides_zero(),
         dtype: .Int32,
     }
-    let got_invalid = match copy(stream, src, bad_dst)
+    let got_invalid = match copy_view(stream, src, bad_dst):
         Err(.InvalidView(_)) => true
         _ => false
     assert(got_invalid)
@@ -487,7 +487,7 @@ fn test_copy_rejects_out_of_range_view:
 
 fn test_fill_rejects_out_of_range_view:
     let stream = stream_create(default_device())
-    let mem = match alloc(default_device(), 4usize)
+    let mem = match alloc(default_device(), 4usize):
         Ok(v) => v
         Err(_) =>
             assert(false)
@@ -499,7 +499,7 @@ fn test_fill_rejects_out_of_range_view:
         strides: strides_zero(),
         dtype: .Int32,
     }
-    let got_invalid = match fill(stream, bad, scalar_i32(1))
+    let got_invalid = match fill(stream, bad, scalar_i32(1)):
         Err(.InvalidView(_)) => true
         _ => false
     assert(got_invalid)

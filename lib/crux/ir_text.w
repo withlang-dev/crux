@@ -8,16 +8,19 @@ type LineScan {
     line: str,
     next: i32,
 }
+impl Copy for LineScan
 
 type TokenScan {
     token: str,
     next: i32,
 }
+impl Copy for TokenScan
 
 type GroupScan {
     inner: str,
     next: i32,
 }
+impl Copy for GroupScan
 
 type ParamSymbols {
     count: i32,
@@ -30,6 +33,7 @@ type ParamSymbols {
     name6: str,
     name7: str,
 }
+impl Copy for ParamSymbols
 
 type ParseState {
     source: ProgramSource,
@@ -130,7 +134,7 @@ fn parse_param_line(line: str, state: ParseState) -> Result[ParseState, IRTextEr
     var next_state = state
     next_state.source = interned.source
     next_state.source.ir.push(ir_param_inst(interned.index, mode, rank, dtype))
-    next_state.params = param_symbols_add(state.params, name_scan.token)?
+    next_state.params = param_symbols_add(next_state.params, name_scan.token)?
     Ok(next_state)
 
 fn parse_storage_line(line: str, state: ParseState) -> Result[ParseState, IRTextError]:
@@ -155,9 +159,9 @@ fn parse_storage_line(line: str, state: ParseState) -> Result[ParseState, IRText
     let op = if op_name == "local" then IROP_LOCAL else IROP_PRIVATE
     next_state.source.ir.push(ir_inst(op, dtype, interned.index, rank, aux_base, 0))
     if op_name == "local":
-        next_state.locals = param_symbols_add(state.locals, name_scan.token)?
+        next_state.locals = param_symbols_add(next_state.locals, name_scan.token)?
     else:
-        next_state.privates = param_symbols_add(state.privates, name_scan.token)?
+        next_state.privates = param_symbols_add(next_state.privates, name_scan.token)?
     Ok(next_state)
 
 fn parse_store_line(line: str, state: ParseState) -> Result[ParseState, IRTextError]:
@@ -618,7 +622,7 @@ fn parse_f64_ascii(token: str) -> Result[f64, IRTextError]:
         return Err(.ParseError("invalid float literal"))
     Ok(sign * (whole + frac))
 
-fn dtype_bit_width(dtype: DType) -> i32:
+fn dtype_bit_width(dtype: DType) -> u32:
     if dtype == .Int8 or dtype == .UInt8:
         return 8
     if dtype == .Int16 or dtype == .UInt16 or dtype == .Float16 or dtype == .BFloat16:
@@ -629,13 +633,13 @@ fn dtype_bit_width(dtype: DType) -> i32:
         return 64
     0
 
-fn mask_bits(width: i32) -> u64:
+fn mask_bits(width: u32) -> u64:
     if width >= 64:
         return 18446744073709551615u64
-    (1u64 << width) - 1u64
+    (1u64 << width) - 1
 
 fn f32_to_f16_bits(value: f32) -> u16:
-    let raw: u32 = unsafe: transmute[u32](value)
+    let raw: u32 = unsafe { transmute[u32](value) }
     let sign = (raw >> 16) & 32768u32
     let exp = ((raw >> 23) & 255u32) as i32
     let frac = raw & 8388607u32
@@ -651,7 +655,7 @@ fn f32_to_f16_bits(value: f32) -> u16:
         if half_exp < -10:
             return sign as u16
         let mant = frac | 8388608u32
-        let shift = 14 - half_exp
+        let shift: u32 = (14 - half_exp) as u32
         var rounded = mant >> shift
         let round_bit = (mant >> (shift - 1)) & 1u32
         if round_bit != 0u32:
@@ -666,7 +670,7 @@ fn f32_to_f16_bits(value: f32) -> u16:
     (sign | ((half_exp as u32) << 10) | half_frac) as u16
 
 fn f32_to_bf16_bits(value: f32) -> u16:
-    let raw: u32 = unsafe: transmute[u32](value)
+    let raw: u32 = unsafe { transmute[u32](value) }
     let lsb = (raw >> 16) & 1u32
     let rounded = raw + 32767u32 + lsb
     (rounded >> 16) as u16
